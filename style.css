@@ -23,38 +23,29 @@ body {
   flex: 1.2;
   padding-left: 40px;
 }
+.welcome {
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  margin-bottom: 24px;
+}
 
-.regheader {
+.hero-text {
   font-size: 42px;
   font-weight: 700;
-  margin-left:270px;
-  position: relative; 
-  top: -15px;
+  line-height: 1.35;
 }
 
-.head2{
-  font-size: 32px;
-  font-weight: 600;
-  margin-left:120px;
-  position: relative; 
-  bottom: 80px;
+.hero-text div {
+  margin: 6px 0;
 }
 
-.left h1 {
-  font-size: 42px;
+.hero-text .amp {
+  font-size: 28px;
   font-weight: 700;
-  margin-left:180px;
-  position: relative;
-  bottom: 50px;
+  margin: 10px 0;
 }
 
-.left h2 {
-  font-size: 32px;
-  font-weight: 600;
-  height: 1.1;
-  margin-left:80px;
-  position: relative;
-}
 
 .right {
   flex: 0.8;
