@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Register</title>
+  <title>Sign In</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="login-page">
 
   <form id="loginForm" class="card login-card">
 
-    <h2 class="signinh2">Login here</h2>
+    <h3 class="signinh2">Sign In</h3>
 
     <label>Email</label>
     <input type="email" id="email" placeholder="Enter your email">
@@ -28,7 +28,18 @@
 
   </form>
 
+  <div id="privacyModal" class="modal">
+    <div class="modal-content">
+      <h3>Data Usage & Privacy Disclaimer</h3>
+      <p>
+        By continuing, you consent to the use of your data for financial analysis.
+      </p>
+      <div class="modal-actions">
+        <button id="acceptBtn">I Accept</button>
+      </div>
+    </div>
+  </div>
+
   <script src="login.js"></script>
 </body>
-
 </html>

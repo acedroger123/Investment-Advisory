@@ -1,22 +1,22 @@
-document.getElementById("registerForm").addEventListener("submit", async (event) => {
-  event.preventDefault()
+document.getElementById("registerForm").addEventListener("submit", async (e) => {
+  e.preventDefault()
 
   const name = document.getElementById("name").value.trim()
   const email = document.getElementById("email").value.trim()
-  const password = document.getElementById("password").value.trim()
-  const confirmPassword = document.getElementById("confirmPassword").value.trim()
+  const password = document.getElementById("password").value
+  const confirmPassword = document.getElementById("confirmPassword").value
 
   clearErrors()
 
   let valid = true
 
-  if (name.length < 3 || !/^[A-Za-z ]+$/.test(name)) {
-    showError("nameError", "Enter a valid name (min 3 letters)")
+  if (name.length < 3) {
+    showError("nameError", "Enter a valid name")
     valid = false
   }
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    showError("emailError", "Enter a valid email address")
+    showError("emailError", "Enter a valid email")
     valid = false
   }
 
@@ -39,7 +39,16 @@ document.getElementById("registerForm").addEventListener("submit", async (event)
   })
 
   const result = await response.json()
-  alert(result.message)
+
+  if (result.message === "Registration successful") {
+    document.getElementById("privacyModal").style.display = "flex"
+  } else {
+    alert(result.message)
+  }
+})
+
+document.getElementById("acceptBtn").addEventListener("click", () => {
+  window.location.href = "questionnaire.html"
 })
 
 function showError(id, message) {
@@ -47,5 +56,5 @@ function showError(id, message) {
 }
 
 function clearErrors() {
-  document.querySelectorAll(".error").forEach(el => el.innerText = "")
+  document.querySelectorAll(".error").forEach(e => e.innerText = "")
 }

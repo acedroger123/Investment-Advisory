@@ -147,3 +147,47 @@ body.login-page {
 .signinh2{
   margin-left: 100px;
 }
+
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  width: 420px;
+  padding: 24px;
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+}
+
+.modal-content h3 {
+  margin-top: 0;
+}
+
+.modal-content p {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.modal-actions {
+  text-align: right;
+  margin-top: 20px;
+}
+
+.modal-actions button {
+  padding: 10px 18px;
+  border: none;
+  border-radius: 8px;
+  background: #3b6cb7;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+}
+
