@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Register</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <main class="page">
+
+    <section class="left">
+      <h1>WELCOME!</h1>
+      <h2>
+        Intelligent Investment Advisory<br>
+      </h2>
+        <p class="regheader">&</p><br>
+        <p class="head2">Portfolio Management</p>
+        
+      
+    </section>
+
+    <section class="right">
+      <form id="registerForm" class="card">
+
+        <h3>Register here</h3>
+
+        <label>Name</label>
+        <input type="text" id="name" placeholder="Enter your name">
+        <small class="error" id="nameError"></small>
+
+        <label>Email</label>
+        <input type="email" id="email" placeholder="Enter your email">
+        <small class="error" id="emailError"></small>
+
+        <label>Password</label>
+        <input type="password" id="password" placeholder="Create password">
+        <small class="error" id="passwordError"></small>
+
+        <label>Confirm password</label>
+        <input type="password" id="confirmPassword" placeholder="Re-enter password">
+        <small class="error" id="confirmPasswordError"></small>
+
+        <button type="submit">Register</button>
+
+        <p class="link">
+          Already have an account?
+          <a href="SignIn.html">Login here.</a>
+        </p>
+
+      </form>
+    </section>
+
+  </main>
+
+  <footer>
+    Powered by Machine Learning, Modern Portfolio Theory & Advanced NLP
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
