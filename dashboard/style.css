@@ -1,0 +1,153 @@
+*{
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+body{
+  background: #f5f8fc;
+  color: #121111;
+}
+
+.navbar{
+  display: flex;
+  gap: 20px;
+  background: #ffffff;
+  padding: 16px 30px;
+  border-radius: 999px;
+  margin: 20px auto;
+  width: fit-content;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+}
+
+.nav-item{
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  color: #555;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+}
+
+.nav-item:hover{
+  background: #f3f6fb;
+}
+
+.nav-item.active{
+  background: #f1f4f9;
+  font-weight: 600;
+  color: #000;
+}
+
+.container{
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.cards{
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  padding-bottom: 30px;
+}
+
+.card{
+  background: white;
+  padding: 20px;
+  border-radius: 16px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+}
+
+.card h4{
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 10px;
+}
+
+.card h2{
+  font-size: 22px;
+}
+
+.positive{
+  color: #22c55e;
+  font-size: 14px;
+  margin-top: 6px;
+}
+
+.chart{
+  background: white;
+  margin-top: 30px;
+  padding: 24px;
+  border-radius: 20px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+}
+
+.subtitle{
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 16px;
+}
+
+canvas{
+  margin-top: 20px;
+}
+
+.holdings{
+  background: white;
+  margin-top: 30px;
+  padding: 24px;
+  border-radius: 20px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+}
+
+.holding-row{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px;
+  border-radius: 14px;
+  border: 1px solid #f0f0f0;
+  margin-top: 14px;
+}
+
+.holdings-left{
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.holdings-title{
+  font-weight: 600;
+}
+
+.ticker{
+  background: #eef2ff;
+  color: #1e40af;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  margin-left: 8px;
+}
+
+.holding-sub{
+  font-size: 14px;
+  color: #666;
+}
+
+.holdings-right{
+  text-align: right;
+}
+
+.holdings-return{
+  color: #22c55e;
+  font-weight: 600;
+}
+
+.holding-ytd{
+  font-size: 12px;
+  color: #777;
+}
+
