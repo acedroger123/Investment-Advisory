@@ -28,9 +28,8 @@ document.getElementById("loginForm").addEventListener("submit", async (event) =>
 
   const result = await response.json()
 
-  // ✅ SHOW DISCLAIMER ONLY AFTER SUCCESSFUL LOGIN
   if (result.message === "Login successful") {
-    document.getElementById("privacyModal").style.display = "flex"
+    window.location.href = "questionnaire.html"
   } else {
     alert(result.message)
   }
@@ -43,8 +42,3 @@ function showError(id, message) {
 function clearErrors() {
   document.querySelectorAll(".error").forEach(el => el.innerText = "")
 }
-
-// ✅ REDIRECT ONLY AFTER ACCEPTING DISCLAIMER
-document.getElementById("acceptBtn").addEventListener("click", () => {
-  window.location.href = "questionnaire.html"
-})
