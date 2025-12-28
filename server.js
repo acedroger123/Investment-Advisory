@@ -1,6 +1,7 @@
 const express = require("express")
 const cors = require("cors")
 const { Pool } = require("pg")
+const bcrypt = require("bcrypt")
 
 const app = express()
 app.use(cors())
@@ -14,6 +15,7 @@ const pool = new Pool({
   port: 5432
 })
 
+/*REGISTER*/
 app.post("/register", async (req, res) => {
   const { name, email, password } = req.body
 
@@ -27,43 +29,49 @@ app.post("/register", async (req, res) => {
       return res.json({ message: "Email already registered" })
     }
 
+    const hashedPassword = await bcrypt.hash(password, 10)
+
     await pool.query(
       "INSERT INTO newusers (name, email, password, consent_given) VALUES ($1, $2, $3, true)",
-      [name, email, password]
+      [name, email, hashedPassword]
     )
 
     res.json({ message: "Registration successful" })
   } catch (err) {
-    console.error(err)
+    console.error("REGISTER ERROR:", err)
     res.status(500).json({ message: "Server error" })
   }
 })
 
+/*LOGIN*/
 app.post("/login", async (req, res) => {
   const { email, password } = req.body
 
   try {
     const result = await pool.query(
-      "SELECT id FROM newusers WHERE email = $1 AND password = $2",
-      [email, password]
+      "SELECT password FROM newusers WHERE email = $1",
+      [email]
     )
 
     if (result.rows.length === 0) {
       return res.json({ message: "Invalid email or password" })
     }
 
+    const storedHash = result.rows[0].password
+    const match = await bcrypt.compare(password, storedHash)
+
+    if (!match) {
+      return res.json({ message: "Invalid email or password" })
+    }
+
     res.json({ message: "Login successful" })
   } catch (err) {
-    console.error(err)
+    console.error("LOGIN ERROR:", err)
     res.status(500).json({ message: "Server error" })
   }
 })
 
-app.listen(3000, () => {
-  console.log("Server running on port 3000")
-})
-
-
+/*SURVEY*/
 app.post("/survey", async (req, res) => {
   const {
     user_id,
@@ -82,10 +90,10 @@ app.post("/survey", async (req, res) => {
   try {
     await pool.query(
       `INSERT INTO survey_responses
-      (user_id, age_group, income_range, savings_percent,
-       investment_experience, instruments_used_count,
-       financial_comfort, loss_reaction, return_priority,
-       volatility_comfort, risk_label)
+       (user_id, age_group, income_range, savings_percent,
+        investment_experience, instruments_used_count,
+        financial_comfort, loss_reaction, return_priority,
+        volatility_comfort, risk_label)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
       [
         user_id,
@@ -104,7 +112,12 @@ app.post("/survey", async (req, res) => {
 
     res.json({ message: "Survey saved successfully" })
   } catch (err) {
-    console.error(err)
+    console.error("SURVEY ERROR:", err)
     res.status(500).json({ message: "Error saving survey" })
   }
+})
+
+/*START SERVER*/
+app.listen(3000, () => {
+  console.log("Server running on port 3000")
 })
