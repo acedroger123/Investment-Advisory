@@ -9,6 +9,7 @@ body {
   background: linear-gradient(60deg, #9ecbff, #ffffff, #e4b5ec);
   display: flex;
   flex-direction: column;
+  
 }
 
 .page {
@@ -133,6 +134,30 @@ footer {
   padding: 12px 0;
 }
 
+.password-wrapper {
+  position: relative;
+}
+
+.password-wrapper input {
+  padding-right: 70px;
+}
+
+.toggle-password {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: #3b6cb7;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-password:hover {
+  text-decoration: underline;
+}
+
+
 body.login-page {
   display: flex;
   justify-content: center;
@@ -191,3 +216,85 @@ body.login-page {
   cursor: pointer;
 }
 
+/* Questionnaire*/
+
+.questionnaire-page {
+  min-height: 100vh;
+  background: linear-gradient(60deg, #9ecbff, #ffffff, #e4b5ec);
+}
+
+.questionnaire-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.questionnaire-wrapper .wizard {
+  width: 70vw;
+  max-width: 950px;
+  min-height: 75vh;
+
+  background: #fff;
+  border-radius: 24px;
+  padding: 50px 70px;
+
+  box-shadow: 0 30px 80px rgba(0,0,0,0.15);
+}
+
+/* Wizard internals */
+.step {
+  display: none;
+}
+
+.step.active {
+  display: block;
+}
+
+.progress {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 30px;
+}
+
+.progress span {
+  flex: 1;
+  height: 6px;
+  background: #ddd;
+  border-radius: 4px;
+}
+
+.progress span.active {
+  background: #3b6cb7;
+}
+
+.nav {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 30px;
+}
+
+button {
+  padding: 14px;
+  border: none;
+  border-radius: 22px;
+  background: linear-gradient(90deg, #3b6cb7, #8bb6e8);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+label {
+  display: block;
+  margin-top: 18px;
+  font-size: 14px;
+}
+
+select, input {
+  width: 100%;
+  padding: 12px 14px;
+  margin-top: 6px;
+  font-size: 14px;
+  border-radius: 10px;
+}

@@ -16,8 +16,12 @@
     <small class="error" id="emailError"></small>
 
     <label>Password</label>
-    <input type="password" id="password" placeholder="Enter your password">
-    <small class="error" id="passwordError"></small>
+      <div class="password-wrapper">
+        <input type="password" id="password" placeholder="Enter password">
+        <span class="toggle-password" onclick="togglePassword('password', this)">Show</span>
+      </div>
+      <small class="error" id="passwordError"></small>
+
 
     <button type="submit">Login</button>
 

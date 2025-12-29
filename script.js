@@ -40,21 +40,41 @@ document.getElementById("registerForm").addEventListener("submit", async (e) => 
 
   const result = await response.json()
 
-  if (result.message === "Registration successful") {
-    document.getElementById("privacyModal").style.display = "flex"
-  } else {
+  if (!response.ok) {
     alert(result.message)
+    return
   }
+
+  // 🔴 THIS WAS THE MISSING PIECE
+  localStorage.setItem("user_id", result.user_id)
+
+  // Show privacy modal ONLY after user_id is saved
+  document.getElementById("privacyModal").style.display = "flex"
 })
 
+/* ---------- CONSENT ACCEPT ---------- */
 document.getElementById("acceptBtn").addEventListener("click", () => {
   window.location.href = "questionnaire.html"
 })
 
+/* ---------- HELPERS ---------- */
 function showError(id, message) {
   document.getElementById(id).innerText = message
 }
 
 function clearErrors() {
   document.querySelectorAll(".error").forEach(e => e.innerText = "")
+}
+
+/* ---------- PASSWORD TOGGLE ---------- */
+function togglePassword(inputId, toggleElement) {
+  const input = document.getElementById(inputId)
+
+  if (input.type === "password") {
+    input.type = "text"
+    toggleElement.innerText = "Hide"
+  } else {
+    input.type = "password"
+    toggleElement.innerText = "Show"
+  }
 }

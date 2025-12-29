@@ -28,10 +28,19 @@ document.getElementById("loginForm").addEventListener("submit", async (event) =>
 
   const result = await response.json()
 
-  if (result.message === "Login successful") {
-    window.location.href = "questionnaire.html"
-  } else {
+  if (!response.ok) {
     alert(result.message)
+    return
+  }
+
+  // store logged-in user
+  localStorage.setItem("user_id", result.user_id)
+
+  // redirect based on questionnaire status
+  if (result.questionnaire_completed) {
+    window.location.href = "dashboard.html"
+  } else {
+    window.location.href = "questionnaire.html"
   }
 })
 
@@ -41,4 +50,16 @@ function showError(id, message) {
 
 function clearErrors() {
   document.querySelectorAll(".error").forEach(el => el.innerText = "")
+}
+
+function togglePassword(inputId, toggleElement) {
+  const input = document.getElementById(inputId)
+
+  if (input.type === "password") {
+    input.type = "text"
+    toggleElement.innerText = "Hide"
+  } else {
+    input.type = "password"
+    toggleElement.innerText = "Show"
+  }
 }

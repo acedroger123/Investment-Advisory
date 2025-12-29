@@ -34,12 +34,19 @@
         <small class="error" id="emailError"></small>
 
         <label>Password</label>
-        <input type="password" id="password" placeholder="Create password">
-        <small class="error" id="passwordError"></small>
+          <div class="password-wrapper">
+            <input type="password" id="password" placeholder="Create password">
+            <span class="toggle-password" onclick="togglePassword('password', this)">Show</span>
+          </div>
+          <small class="error" id="passwordError"></small>
 
-        <label>Confirm password</label>
-        <input type="password" id="confirmPassword" placeholder="Re-enter password">
-        <small class="error" id="confirmPasswordError"></small>
+          <label>Confirm password</label>
+          <div class="password-wrapper">
+            <input type="password" id="confirmPassword" placeholder="Re-enter password">
+            <span class="toggle-password" onclick="togglePassword('confirmPassword', this)">Show</span>
+          </div>
+          <small class="error" id="confirmPasswordError"></small>
+
 
         <button type="submit">Register</button>
 
