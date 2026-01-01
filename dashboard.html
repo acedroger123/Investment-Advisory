@@ -1,16 +1,67 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>User Dashboard</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <title>AI Wealth Dashboard</title>
+  <link rel="stylesheet" href="dashboard.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
-  <div style="padding:40px;">
-    <h2>Welcome to your Dashboard</h2>
-    <p>Your risk profile has been saved successfully.</p>
-  </div>
+  <nav class="navbar">
+    <a href="index.html" class="nav-item active">Dashboard</a>
+    <a href="portfolio.html" class="nav-item">Portfolio</a>
+    <a href="goaltracker.html" class="nav-item">Goal Tracker</a>
+    <a href="index.html" class="nav-item">User Profile</a>
+  </nav>
 
+  <main class = "container">
+    <section class="cards">
+      <div class="card">
+      <h4>Total Value</h4>
+      <h2 id="totalvalue">--</h2>
+      <p class = "positive" id="totalreturn">--</p>
+      </div>
+      
+
+      <div class="card">
+        <h4>YTD Return</h4>
+        <h2 id="ytdreturn">--</h2>
+        <p class="positive" id="benchmarkCompare">--</p>
+      </div>
+
+      <div class="card">
+        <h4>Risk Score</h4>
+        <h2 id="riskprofile">--</h2>
+        <p id="sharperatio">--</p>
+      </div>
+
+      <div class="card">
+        <h4>Portfolio Health</h4>
+        <h2 id="portfoliohealth">--</h2>
+        <p class="positive" id="healthscore">--</p>
+      </div>
+
+    </section>
+
+    <section class="chart">
+      <h3>Portfolio Performance</h3>
+      <p class="subtitle">
+        Your Income vs Expenditure
+      </p>
+      <canvas id = "performancechart"></canvas>
+    </section>
+
+    <section class = "holdings">
+      <h3>Your top holdings</h3>
+      <p class="subtitle">Your largest portfolio postrions</p>
+      <div id = "holdingslist">
+
+
+      </div>
+    </section>
+
+  </main>
+  <script src="dashboard.js"></script>
 </body>
 </html>

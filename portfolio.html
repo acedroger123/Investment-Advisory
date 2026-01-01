@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="portfoliostyle.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <title>Portfolio</title>
+</head>
+<body>
+  <nav class="navbar">
+    <a href="index.html" class="nav-item">Dashboard</a>
+    <a href="portfolio.html" class="nav-item active">Portfolio</a>
+    <a href="goaltracker.html" class="nav-item">Goal Tracker</a>
+    <a href="dashboard.html" class="nav-item">User Profile</a>
+  </nav>
+
+  
+  <div class="container">
+
+    <div class="header">
+      <h1>Your Portfolio</h1>
+    </div>
+
+    <div class="statistic">
+    <div class="graph">
+      <canvas id="assetdisttributionchart"></canvas>
+      </div>
+
+      <div class="portfoliovalue">
+        <p>Your total portfolio value</p>
+        <h2 id="portvalue"></h2>
+
+        <p class="risks">Your current risk lrvel</p>
+        <span id="risklevel" class="risk"></span>
+
+        <h3>Your Assets</h3>
+        <ul id="assets"></ul>
+      </div>
+    </div>
+
+    <div class="currentinvestment">
+      <h3>Your current Investments</h3>
+      <ul id="investments"></ul>
+    </div>
+
+  </div>
+
+  <div class="container_two">
+    <div class="header_two">
+      <h2>Recommended Portfolio</h2>
+    </div>
+
+    <div class="statistics_two">
+      <div class="graph_two">
+        <canvas id="recommendedchart"></canvas>
+      </div>
+
+      <div class="values">
+        <div class="annualreturns">
+          <p>Expected annual returns</p>
+          <p id="returns"></p>
+        </div>
+
+        <div class="annualriks">
+          <p>Expected risks</p>
+          <p id="risks"></p>
+        </div>
+
+        <div class="aalocatedd">
+          <p>Recommended Allocations</p>
+          <div id="allocation"></div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+
+  <script src="portfolio.js"></script>
+</body>
+</html>
