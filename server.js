@@ -1,147 +1,98 @@
-const express = require("express")
-const cors = require("cors")
-const { Pool } = require("pg")
-const bcrypt = require("bcrypt")
+document.getElementById("registerForm").addEventListener("submit", async (e) => {
+  e.preventDefault()
 
-const app = express()
-app.use(cors())
-app.use(express.json())
+  const name = document.getElementById("name").value.trim()
+  const email = document.getElementById("email").value.trim()
+  const password = document.getElementById("password").value
+  const confirmPassword = document.getElementById("confirmPassword").value
 
-const pool = new Pool({
-  user: "postgres",
-  host: "localhost",
-  database: "SignUp_SignIn_DB",
-  password: "root",
-  port: 5432
-})
+  clearErrors()
 
-/* ---------- REGISTER ---------- */
-app.post("/register", async (req, res) => {
-  const { name, email, password } = req.body
+  let valid = true
 
-  try {
-    const existing = await pool.query(
-      "SELECT id FROM newusers WHERE email = $1",
-      [email]
-    )
-
-    if (existing.rows.length > 0) {
-      return res.status(400).json({ message: "Email already registered" })
-    }
-
-    // 🔐 HASH PASSWORD
-    const hashedPassword = await bcrypt.hash(password, 10)
-
-    const result = await pool.query(
-      `INSERT INTO newusers (name, email, password, questionnaire_completed)
-       VALUES ($1, $2, $3, FALSE)
-       RETURNING id`,
-      [name, email, hashedPassword]
-    )
-
-    res.json({
-      message: "Registration successful",
-      user_id: result.rows[0].id
-    })
-  } catch (err) {
-    console.error("REGISTER ERROR:", err)
-    res.status(500).json({ message: "Server error" })
+  if (name.length < 3) {
+    showError("nameError", "Enter a valid name")
+    valid = false
   }
-})
 
-/* ---------- LOGIN ---------- */
-app.post("/login", async (req, res) => {
-  const { email, password } = req.body
-
-  try {
-    const result = await pool.query(
-      `SELECT id, password, questionnaire_completed
-       FROM newusers
-       WHERE email = $1`,
-      [email]
-    )
-
-    if (result.rows.length === 0) {
-      return res.status(401).json({ message: "Invalid credentials" })
-    }
-
-    const user = result.rows[0]
-
-    // 🔐 COMPARE HASH
-    const isMatch = await bcrypt.compare(password, user.password)
-
-    if (!isMatch) {
-      return res.status(401).json({ message: "Invalid credentials" })
-    }
-
-    res.json({
-      message: "Login successful",
-      user_id: user.id,
-      questionnaire_completed: user.questionnaire_completed
-    })
-  } catch (err) {
-    console.error("LOGIN ERROR:", err)
-    res.status(500).json({ message: "Server error" })
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    showError("emailError", "Enter a valid email")
+    valid = false
   }
-})
 
-/* ---------- QUESTIONNAIRE ---------- */
-app.post("/survey", async (req, res) => {
-  const {
-    user_id,
-    age_group,
-    occupation,
-    income_range,
-    savings_percent,
-    investment_experience,
-    instruments_used_count,
-    financial_comfort,
-    loss_reaction,
-    return_priority,
-    volatility_comfort,
-    goal,
-    time_horizon,
-    risk_label
-  } = req.body
-
-  try {
-    await pool.query(
-      `INSERT INTO questionnaire_responses
-      (user_id, age_group, occupation, income_range, savings_percent,
-       investment_experience, instruments_used_count, financial_comfort,
-       loss_reaction, return_priority, volatility_comfort,
-       goal, time_horizon, risk_label)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
-      [
-        user_id,
-        age_group,
-        occupation,
-        income_range,
-        savings_percent,
-        investment_experience,
-        instruments_used_count,
-        financial_comfort,
-        loss_reaction,
-        return_priority,
-        volatility_comfort,
-        goal,
-        time_horizon,
-        risk_label
-      ]
-    )
-
-    await pool.query(
-      "UPDATE newusers SET questionnaire_completed = TRUE WHERE id = $1",
-      [user_id]
-    )
-
-    res.json({ message: "Questionnaire saved successfully" })
-  } catch (err) {
-    console.error("SURVEY ERROR:", err)
-    res.status(500).json({ message: "Error saving questionnaire" })
+  if (password.length < 6) {
+    showError("passwordError", "Password must be at least 6 characters")
+    valid = false
   }
+
+  if (password !== confirmPassword) {
+    showError("confirmPasswordError", "Passwords do not match")
+    valid = false
+  }
+
+  if (!valid) return
+
+  const response = await fetch("http://localhost:3000/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, email, password })
+  })
+
+  const result = await response.json()
+
+  if (!response.ok) {
+    alert(result.message)
+    return
+  }
+
+  // ✅ STORE USER ID
+  localStorage.setItem("user_id", result.user_id)
+
+  // ✅ SHOW CONSENT MODAL
+  document.getElementById("privacyModal").style.display = "flex"
 })
 
-app.listen(3000, () => {
-  console.log("Server running on port 3000")
+/* ---------- CONSENT ACCEPT ---------- */
+document.getElementById("acceptBtn").addEventListener("click", async () => {
+  const user_id = localStorage.getItem("user_id")
+
+  if (!user_id) {
+    alert("User not found. Please register again.")
+    return
+  }
+
+  // ✅ CALL CONSENT API
+  const response = await fetch("http://localhost:3000/consent", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id })
+  })
+
+  if (!response.ok) {
+    alert("Failed to record consent")
+    return
+  }
+
+  // ✅ REDIRECT ONLY AFTER DB UPDATE
+  window.location.href = "questionnaire.html"
 })
+
+function showError(id, message) {
+  document.getElementById(id).innerText = message
+}
+
+function clearErrors() {
+  document.querySelectorAll(".error").forEach(e => e.innerText = "")
+}
+
+function togglePassword(inputId, toggleElement) {
+  const input = document.getElementById(inputId)
+
+  if (input.type === "password") {
+    input.type = "text"
+    toggleElement.innerText = "Hide"
+  } else {
+    input.type = "password"
+    toggleElement.innerText = "Show"
+  }
+}

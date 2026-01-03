@@ -1,0 +1,125 @@
+* {
+  box-sizing: border-box;
+  font-family: "Segoe UI", sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #f6f8fb;
+}
+
+.navbar{
+  display: flex;
+  gap: 20px;
+  background: #ffffff;
+  padding: 16px 30px;
+  border-radius: 999px;
+  margin: 20px auto;
+  width: fit-content;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+}
+
+.nav-item{
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  color: #555;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+}
+
+.nav-item:hover{
+  background: #f3f6fb;
+}
+
+.nav-item.active{
+  background: #f1f4f9;
+  font-weight: 600;
+  color: #000;
+}
+
+.profile-container {
+  padding: 40px;
+}
+
+.profile-header h2 {
+  margin-bottom: 6px;
+}
+
+.profile-card {
+  background: #fff;
+  padding: 30px;
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+}
+
+.profile-tabs {
+  display: flex;
+  gap: 10px;
+  background: #f1f1f5;
+  padding: 10px;
+  border-radius: 12px;
+  margin-bottom: 25px;
+}
+
+.profile-tabs button {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 10px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.profile-tabs button.active {
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.profile-section {
+  display: none;
+}
+
+.profile-section.active {
+  display: block;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  margin-top: 20px;
+}
+
+label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+input, select {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+  margin-top: 6px;
+}
+
+.footer-nav {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 30px;
+}
+
+.footer-nav button {
+  padding: 12px 20px;
+  border-radius: 10px;
+  border: none;
+  font-weight: 600;
+}
+
+.footer-nav .primary {
+  background: #000;
+  color: #fff;
+}
