@@ -1,80 +1,52 @@
-document.getElementById("registerForm").addEventListener("submit", async (e) => {
-  e.preventDefault()
+document.addEventListener("DOMContentLoaded", () => {
 
-  const name = document.getElementById("name").value.trim()
-  const email = document.getElementById("email").value.trim()
-  const password = document.getElementById("password").value
-  const confirmPassword = document.getElementById("confirmPassword").value
+  const acceptBtn = document.getElementById("acceptBtn")
 
-  clearErrors()
+  if (acceptBtn) {
+    acceptBtn.addEventListener("click", async () => {
 
-  let valid = true
+      try {
 
-  if (name.length < 3) {
-    showError("nameError", "Enter a valid name")
-    valid = false
+        const response = await fetch("http://localhost:3000/consent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({})
+        })
+
+        if (!response.ok) {
+          alert("Consent failed")
+          return
+        }
+
+        window.location.href = "questionnaire.html"
+
+      } catch (err) {
+        alert("Consent API error")
+      }
+
+    })
   }
 
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    showError("emailError", "Enter a valid email")
-    valid = false
-  }
-
-  if (password.length < 6) {
-    showError("passwordError", "Password must be at least 6 characters")
-    valid = false
-  }
-
-  if (password !== confirmPassword) {
-    showError("confirmPasswordError", "Passwords do not match")
-    valid = false
-  }
-
-  if (!valid) return
-
-  const response = await fetch("http://localhost:3000/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, email, password })
-  })
-
-  const result = await response.json()
-
-  if (!response.ok) {
-    alert(result.message)
-    return
-  }
-
-  // 🔴 THIS WAS THE MISSING PIECE
-  localStorage.setItem("user_id", result.user_id)
-
-  // Show privacy modal ONLY after user_id is saved
-  document.getElementById("privacyModal").style.display = "flex"
 })
 
-/* ---------- CONSENT ACCEPT ---------- */
-document.getElementById("acceptBtn").addEventListener("click", () => {
-  window.location.href = "questionnaire.html"
-})
 
-/* ---------- HELPERS ---------- */
-function showError(id, message) {
-  document.getElementById(id).innerText = message
-}
+async function checkSessionAndRedirect() {
 
-function clearErrors() {
-  document.querySelectorAll(".error").forEach(e => e.innerText = "")
-}
+  try {
 
-/* ---------- PASSWORD TOGGLE ---------- */
-function togglePassword(inputId, toggleElement) {
-  const input = document.getElementById(inputId)
+    const response = await fetch("http://localhost:3000/auth/check", {
+      credentials: "include"
+    })
 
-  if (input.type === "password") {
-    input.type = "text"
-    toggleElement.innerText = "Hide"
-  } else {
-    input.type = "password"
-    toggleElement.innerText = "Show"
+    const result = await response.json()
+
+    if (!result.logged_in) {
+      window.location.href = "SignIn.html"
+    }
+
+  } catch (err) {
+    window.location.href = "SignIn.html"
   }
+
 }

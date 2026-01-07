@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Goal Tracker</title>
+  <link rel="stylesheet" href="goals.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<div class="layout">
+ <nav class="sidebar">
+  <h2>Goals</h2>
+<a href="dashboard.html">Dashboard</a>
+<a href="expenses.html">Expense Tracker</a>
+<a href="goals.html" class="active">Goals</a>
+<a href="recommendations.html">Recommendations</a>
+<a href="portfolio.html">Portfolio</a>
+<a href="review.html">Monthly Review</a>
+<a href="settings.html">Settings</a>
+</nav>
+</div>
+
+<div class = "addinggoals" id="addgoals">
+  <div class="goalbox">
+    <div class="goalheader">
+      <div>
+      <h2>Add a New Goal</h2>
+      <h4>Create a new financial goal</h4>
+    </div>
+    <button class="close" id="closebutton">&times;</button>
+  </div>
+
+  <form id="goaladditionform">
+    <div class="formbox">
+
+      <div>
+        <label>Your Goal Name</label>
+        <input type="text" placeholder="e.g. Dream Car" required>
+      </div>
+
+      <div>
+        <label>Goal Type</label>
+        <select>
+          <option>Other</option>
+          <option>Education</option>
+          <option>Home</option>
+          <option>Car</option>
+          <option>Wealth</option>
+          <option>Retirement</option>
+        </select>
+      </div>
+
+      <div>
+        <label>Priorty</label>
+        <select>
+          <option>Low</option>
+          <option>Medium</option>
+          <option>High</option>
+        </select>
+      </div>
+
+      <div>
+        <label>Years to Goal</label>
+        <input type="number" value="10" min="1">
+      </div>
+
+      <div>
+        <label>Target Amount</label>
+        <input type="number" value="0">
+      </div>
+
+      <div>
+        <label>Current Amount</label>
+        <input type="number" value="0">
+      </div>
+
+      <div>
+        <label>Intial Investmnet</label>
+        <input type="number" value="0">
+      </div>
+
+      <div>
+        <label>Monthly SIP</label>
+        <input type="number" value="0">
+      </div>
+
+      <div>
+        <label>Expected Annual Return</label>
+        <input type="number" value="12">
+      </div>
+
+      <div>
+        <label>Risk Profile</label>
+        <select>
+          <option>Conservative</option>
+          <option>Balenced</option>
+          <option>Aggresive</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="buttons">
+      <button type="button" class="btn_one" id="cancelbtn">Cancel</button>
+      <button type="submit" class="btn_two">Create Goal</button>
+    </div>
+  </form>
+</div>
+</div>
+
+<body>
+
+   
+
+  
+  <script src="goals.js"></script>
+</body>
+</html>

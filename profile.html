@@ -6,98 +6,19 @@
   <link rel="stylesheet" href="profile.css">
 </head>
 <body>
-<nav class="navbar">
-    <a href="dashboard.html" class="nav-item">Dashboard</a>
-    <a href="portfolio.html" class="nav-item">Portfolio</a>
-    <a href="goaltrackerindex.html" class="nav-item">Goal Tracker</a>
-    <a href="profile.css" class="nav-item active">User Profile</a>
-  </nav>
-<div class="profile-container">
-
-  <header class="profile-header">
-    <h2>👤 User Profile</h2>
-    <p>Complete your profile for personalized investment recommendations</p>
-  </header>
-
-  <div class="profile-card">
-
-    <!-- TOP NAV -->
-    <div class="profile-tabs">
-      <button class="active" data-step="0">Basic Info</button>
-      <button data-step="1">Risk Profile</button>
-      <button data-step="2">Financial Goals</button>
-      <button data-step="3">Current Status</button>
-      <button data-step="4">Preferences</button>
-      <button data-step="5">Account</button>
-    </div>
-
-    <!-- SECTIONS -->
-    <div class="profile-section active">
-      <h3>Basic Information</h3>
-
-      <div class="grid">
-        <div>
-          <label>Full Name</label>
-          <input type="text">
-        </div>
-        <div>
-          <label>Age</label>
-          <input type="number">
-        </div>
-        <div>
-          <label>Employment Type</label>
-          <select>
-            <option>Student</option>
-            <option>Salaried</option>
-            <option>Self-employed</option>
-            <option>Retired</option>
-          </select>
-        </div>
-        <div>
-          <label>Annual Income</label>
-          <select>
-            <option>Below ₹3L</option>
-            <option>₹3L–₹6L</option>
-            <option>₹6L–₹10L</option>
-            <option>Above ₹10L</option>
-          </select>
-        </div>
-      </div>
-    </div>
-
-    <div class="profile-section">
-      <h3>Risk Profile</h3>
-      <p>Select your investment experience and risk tolerance.</p>
-      <!-- You will reuse questionnaire logic here -->
-    </div>
-
-    <div class="profile-section">
-      <h3>Financial Goals</h3>
-      <!-- Goal inputs -->
-    </div>
-
-    <div class="profile-section">
-      <h3>Current Financial Status</h3>
-      <!-- Savings, expenses, assets -->
-    </div>
-
-    <div class="profile-section">
-      <h3>Investment Preferences</h3>
-      <!-- SIP, assets, ethics -->
-    </div>
-
-    <div class="profile-section">
-      <h3>Account Settings</h3>
-      <!-- Email, notifications -->
-    </div>
-
-    <!-- FOOTER -->
-    <div class="footer-nav">
-      <button id="prevBtn">Previous</button>
-      <button id="nextBtn" class="primary">Next</button>
-    </div>
-
-  </div>
+    <div class="layout">
+  <div class="layout">
+  <nav class="sidebar">
+    <h2>Profile</h2>
+<a href="dashboard.html">Dashboard</a>
+<a href="expenses.html">Expense Tracker</a>
+<a href="goals.html">Goals</a>
+<a href="recommendations.html">Recommendations</a>
+<a href="portfolio.html" class="active">Portfolio</a>
+<a href="review.html">Monthly Review</a>
+<a href="settings.html">Settings</a>
+</nav>
+</div>
 </div>
 
 <script src="profile.js"></script>

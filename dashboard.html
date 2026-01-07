@@ -7,61 +7,20 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-
-  <nav class="navbar">
-    <a href="dashboard.html" class="nav-item active">Dashboard</a>
-    <a href="portfolio.html" class="nav-item">Portfolio</a>
-    <a href="goaltrackerindex.html" class="nav-item">Goal Tracker</a>
-    <a href="profile.html" class="nav-item">User Profile</a>
-  </nav>
-
-  <main class = "container">
-    <section class="cards">
-      <div class="card">
-      <h4>Total Value</h4>
-      <h2 id="totalvalue">--</h2>
-      <p class = "positive" id="totalreturn">--</p>
-      </div>
-      
-
-      <div class="card">
-        <h4>YTD Return</h4>
-        <h2 id="ytdreturn">--</h2>
-        <p class="positive" id="benchmarkCompare">--</p>
-      </div>
-
-      <div class="card">
-        <h4>Risk Score</h4>
-        <h2 id="riskprofile">--</h2>
-        <p id="sharperatio">--</p>
-      </div>
-
-      <div class="card">
-        <h4>Portfolio Health</h4>
-        <h2 id="portfoliohealth">--</h2>
-        <p class="positive" id="healthscore">--</p>
-      </div>
-
-    </section>
-
-    <section class="chart">
-      <h3>Portfolio Performance</h3>
-      <p class="subtitle">
-        Your Income vs Expenditure
-      </p>
-      <canvas id = "performancechart"></canvas>
-    </section>
-
-    <section class = "holdings">
-      <h3>Your top holdings</h3>
-      <p class="subtitle">Your largest portfolio postrions</p>
-      <div id = "holdingslist">
+<div class="layout">
+  <nav class="sidebar">
+    <h2>Dashboard</h2>
+<a href="dashboard.html" class="active">Dashboard</a>
+<a href="expenses.html">Expense Tracker</a>
+<a href="goals.html">Goals</a>
+<a href="recommendations.html">Recommendations</a>
+<a href="portfolio.html">Portfolio</a>
+<a href="review.html">Monthly Review</a>
+<a href="settings.html">Settings</a>
+</nav>
+</div>
 
 
-      </div>
-    </section>
-
-  </main>
   <script src="dashboard.js"></script>
 </body>
 </html>
