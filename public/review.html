@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Monthy Review</title>
+  <link rel="stylesheet" href="review.css">
+</head>
+<body>
+    <nav class="topbar">
+  <div class="nav-links">
+    <a href="dashboard.html">Dashboard</a>
+    <a href="expenses.html">Expense Tracker</a>
+    <a href="goals.html">Goals</a>
+    <a href="recommendations.html">Recommendations</a>
+    <a href="portfolio.html">Portfolio</a>
+    <a href="review.html"  class="active">Monthly Review</a>
+    <a href="settings.html">Settings</a>
+  </div>
+</nav>
+
+<div class="page">
+
+    <div class="header">
+      <div>
+        <h1>Monthly Review</h1>
+        <p class="subtitle"></p>
+      </div>
+      <button class="download-btn">⬇ Download PDF</button>
+    </div>
+
+    <div class="summary-cards">
+
+      <div class="card">
+        <div class="card-header">
+          <span>Income</span>
+          <span class="trend"></span>
+        </div>
+        <h2></h2>
+        <p></p>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span>Expenses</span>
+          <span class="trend"></span>
+        </div>
+        <h2></h2>
+        <p></p>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span>Savings</span>
+          <span class="trend"></span>
+        </div>
+        <h2></h2>
+        <p></p>
+      </div>
+
+    </div>
+
+    <div class="middle-section">
+
+      <div class="panel">
+        <h3>Habit Trends</h3>
+      </div>
+
+      <div class="panel">
+        <h3>Profile Changes</h3>
+      </div>
+
+    </div>
+
+    <div class="insights">
+
+
+      <div class="insight-card">
+        <h3>🐷 Savings & Stability Summary</h3>
+
+        <div class="insight-grid">
+          <div>
+            <p class="label">Average Savings Rate</p>
+            <h2 class="positive-value"></h2>
+            <p class="muted"></p>
+          </div>
+
+          <div>
+            <p class="label">Stability Improvement</p>
+            <h2 class="positive-value"></h2>
+          </div>
+        </div>
+
+        <p class="note"></p>
+      </div>
+
+
+      <div class="insight-card">
+        <h3>📊 Portfolio Impact Summary</h3>
+
+        <div class="risk-row">
+          <span class="label">Portfolio Risk Level</span>
+          <span class="risk-badge"></span>
+        </div>
+
+        <p class="muted"></p>
+        <p class="note small"></p>
+      </div>
+
+    </div>
+
+    <div class="goal-summary">
+      <h3>Goal Progress Summary</h3>
+
+      <div class="goal-cards">
+        <div class="goal-card">
+          <span>Active Goals</span>
+          <h2></h2>
+        </div>
+
+        <div class="goal-card">
+          <span>On Track</span>
+          <h2></h2>
+        </div>
+
+        <div class="goal-card">
+          <span>Need Attention</span>
+          <h2></h2>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+<script src="review.js"></script>
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AI Wealth Dashboard</title>
+  <link rel="stylesheet" href="dashboard.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<nav class="topbar">
+  <div class="nav-links">
+    <a href="dashboard.html" class="active">Dashboard</a>
+    <a href="expenses.html">Expense Tracker</a>
+    <a href="goals.html">Goals</a>
+    <a href="recommendations.html">Recommendations</a>
+    <a href="portfolio.html">Portfolio</a>
+    <a href="review.html">Monthly Review</a>
+    <a href="settings.html">Settings</a>
+  </div>
+</nav>
+<div id="dashboardAlert" class="alert blue" style="display:none;"></div>
+
+<div id="profileAlert" class="alert blue" style="display:none"></div>
+
+<div class="container">
+
+  <!-- KPI CARDS -->
+  <div class="cards">
+    <div class="card">
+      <h4>Income</h4>
+      <h2 id="incomeValue"></h2>
+      <p id="incomeChange"></p>
+    </div>
+
+    <div class="card">
+      <h4>Expenses</h4>
+      <h2 id="expenseValue"></h2>
+      <p id="expenseChange"></p>
+    </div>
+
+    <div class="card">
+      <h4>Savings Rate</h4>
+      <h2 id="savingsRate"></h2>
+      <p id="savingsChange"></p>
+    </div>
+
+    <div class="card">
+      <h4>Goal Feasibility</h4>
+      <span class="badge" id="goalFeasibility"></span>
+    </div>
+  </div>
+
+  <!-- EXPENSE OVERVIEW -->
+  <section>
+    <h3>Expense Behavior Overview</h3>
+    <div class="grid-2">
+      <div class="panel">
+        <h4>Expense Distribution</h4>
+        <canvas id="expensePie"></canvas>
+        <p class="ai-note" id="expensePieNote"></p>
+      </div>
+
+      <div class="panel">
+        <h4>Monthly Expense Trend</h4>
+        <canvas id="expenseLine"></canvas>
+        <p class="ai-note" id="expenseLineNote"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- STABILITY -->
+  <section>
+    <h3>Spending Stability</h3>
+    <div class="panel">
+      <h4>Spending Stability Indicator</h4>
+      <div class="progress">
+        <div class="progress-fill" id="stabilityBar"></div>
+      </div>
+      <div class="info-box" id="stabilityText"></div>
+    </div>
+  </section>
+
+  <!-- CATEGORY INSIGHTS -->
+  <section>
+    <h3>Category Habit Insights</h3>
+    <div class="panel">
+      <canvas id="categoryLine"></canvas>
+      <div id="categoryAlerts"></div>
+    </div>
+  </section>
+
+  <!-- GOALS -->
+  <section class="grid-2">
+    <div class="panel">
+      <h3>Goal Feasibility Status</h3>
+      <div id="goalsContainer"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Savings Rate Over Time</h3>
+      <canvas id="savingsArea"></canvas>
+      <p class="ai-note" id="savingsNote"></p>
+    </div>
+  </section>
+
+  <!-- PORTFOLIO -->
+  <section>
+    <h3>Portfolio Awareness</h3>
+    <div class="panel">
+      <h4>Portfolio Risk Indicator</h4>
+      <div class="risk-bar">
+        <div class="risk-marker" id="riskMarker"></div>
+      </div>
+      <div class="info-box warning" id="riskInfo"></div>
+    </div>
+  </section>
+
+  <!-- RECOMMENDATIONS -->
+  <section>
+    <h3>Priority Recommendations</h3>
+    <div id="recommendations"></div>
+  </section>
+
+  <!-- SUMMARY -->
+  <section class="summary">
+    <h3>Monthly Progress Summary</h3>
+    <div id="summaryPoints"></div>
+  </section>
+
+</div>
+
+
+  <script src="dashboard.js"></script>
+</body>
+</html>

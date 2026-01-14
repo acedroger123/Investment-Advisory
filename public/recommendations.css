@@ -1,0 +1,163 @@
+body {
+  margin: 0;
+  background: #eef2f9;
+  font-family: Arial, sans-serif;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  overflow-x: hidden;
+  background: #eef2f9;
+  font-family: Arial, sans-serif;
+}
+
+/* ---------- TOP NAVBAR ---------- */
+.topbar {
+  width: 100vw;
+  height: 70px;
+  background: white;
+  padding: 0 30px;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 5px 25px rgba(0,0,0,0.1);
+  z-index: 1000;
+  position: sticky;
+}
+
+
+.nav-links {
+  display: flex;
+  gap: 14px;
+  margin-left: 610px;
+}
+
+.nav-links a {
+  padding: 10px 16px;
+  border-radius: 10px;
+  color: #333;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.nav-links a.active {
+  background: #0556d0;
+  color: white;
+}
+
+.container {
+  max-width: 1000px;
+  margin: auto;
+}
+
+.subtitle {
+  color: #666;
+  margin-bottom: 30px;
+}
+
+.priority-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin: 30px 0 15px;
+}
+
+.priority-header span:first-child {
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.priority-header.high span:first-child {
+  background: #e11d48;
+  color: white;
+}
+
+.priority-header.medium span:first-child {
+  background: #e5e7eb;
+}
+
+.count {
+  color: #555;
+}
+
+.recommendation {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 20px 25px;
+  margin-bottom: 20px;
+}
+
+.high-border {
+  border-left: 6px solid #ef4444;
+}
+
+.medium-border {
+  border-left: 6px solid #3b82f6;
+}
+
+.rec-header {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+}
+
+.icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.blue { background: #2563eb; }
+.purple { background: #7c3aed; }
+.red { background: #dc2626; }
+.green { background: #16a34a; }
+
+.tag {
+  display: inline-block;
+  padding: 3px 10px;
+  font-size: 12px;
+  border-radius: 20px;
+  border: 1px solid #ddd;
+  margin-top: 6px;
+}
+
+.toggle-btn {
+  background: none;
+  border: none;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.explanation {
+  background: #f9fafb;
+  padding: 15px;
+  border-radius: 10px;
+  display: none;
+}
+
+.explanation.show {
+  display: block;
+}
+
+.savings-potential-card {
+  margin-top: 40px;
+  padding: 28px 32px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #4f7cff, #8b3dff);
+  color: white;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+}
+
+.amount {
+  font-size: 48px;
+  font-weight: bold;
+  margin: 10px 0;
+}

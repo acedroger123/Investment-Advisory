@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Profile & Settings</title>
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+
+<nav class="topbar">
+  <div class="nav-links">
+    <a href="dashboard.html">Dashboard</a>
+    <a href="expenses.html">Expense Tracker</a>
+    <a href="goals.html">Goals</a>
+    <a href="recommendations.html">Recommendations</a>
+    <a href="portfolio.html">Portfolio</a>
+    <a href="review.html">Monthly Review</a>
+    <a href="settings.html" class="active">Settings</a>
+  </div>
+</nav>
+
+<div class="page">
+
+  <h1>Profile & Settings</h1>
+  <p class="page-subtitle">Manage your account and preferences</p>
+
+  <!-- 🔐 IDENTITY (LOCKED) -->
+  <div class="card">
+    <h2>🔐 Identity Details</h2>
+    <p class="section-subtitle">
+      Changing these requires email verification
+    </p>
+
+    <label>Email</label>
+    <input type="text" id="email" disabled>
+
+    <label>Date of Birth</label>
+    <input type="date" id="dob" disabled>
+
+    <button id="verifyEmailBtn" type="button">
+      Verify via Email to Edit
+    </button>
+  </div>
+
+  <!-- 👤 PROFILE (EDITABLE) -->
+  <div class="card">
+    <h2>👤 Profile Details</h2>
+
+    <div id="profileAlert" class="alert"></div>
+
+    <form id="profileForm">
+
+  <label>Country</label>
+  <input type="text" id="country" disabled>
+
+  <label>Occupation</label>
+  <input type="text" id="occupation" disabled>
+
+  <label>Annual Income Range</label>
+  <select id="annual_income_range" disabled>
+    <option value="">Select</option>
+    <option value="1">Below ₹2,00,000</option>
+    <option value="2">₹2,00,000 – ₹5,00,000</option>
+    <option value="3">₹5,00,000 – ₹10,00,000</option>
+    <option value="4">Above ₹10,00,000</option>
+  </select>
+
+  <button type="button" id="editProfileBtn">
+    Edit Profile
+  </button>
+
+  <button type="submit" id="saveProfileBtn" disabled>
+    Save Profile
+  </button>
+
+</form>
+
+  </div>
+
+
+  <div class="card">
+  <h2>🔔 Notifications</h2>
+  <p class="section-subtitle">
+    Choose how you want to receive updates
+  </p>
+
+  <div class="toggle-row">
+    <div>
+      <strong>Email Notifications</strong>
+      <p>General alerts and important updates</p>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="notifEmail">
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <div class="toggle-row">
+    <div>
+      <strong>Push Notifications</strong>
+      <p>Browser & device notifications (coming soon)</p>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="notifPush">
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <div class="toggle-row">
+    <div>
+      <strong>Monthly Reports</strong>
+      <p>Email summary of your financial activity</p>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="notifMonthly">
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <button id="saveNotifications">
+    Save Notification Preferences
+  </button>
+</div>
+
+  <button class="logout" onclick="logout()">Logout</button>
+
+</div>
+
+
+
+<script src="settings.js"></script>
+</body>
+</html>

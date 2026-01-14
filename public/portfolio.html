@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Portfolio</title>
+  <link rel="stylesheet" href="portfolio.css">
+</head>
+<body>
+  <nav class="topbar">
+  <div class="nav-links">
+    <a href="dashboard.html">Dashboard</a>
+    <a href="expenses.html">Expense Tracker</a>
+    <a href="goals.html">Goals</a>
+    <a href="recommendations.html">Recommendations</a>
+    <a href="portfolio.html"  class="active">Portfolio</a>
+    <a href="review.html">Monthly Review</a>
+    <a href="settings.html">Settings</a>
+  </div>
+</nav>
+
+<div class="container">
+
+  <div class="header">
+    <div>
+      <h1>Investment Portfolio</h1>
+      <p id="pageSubtitle"></p>
+    </div>
+    <button class="add-btn">+ Add Stock</button>
+  </div>
+
+  <div class="summary summary-4">
+    <div class="card">
+      <span>Total Value</span>
+      <h2 id="totalValue"></h2>
+    </div>
+
+    <div class="card">
+      <span>Total Gain/Loss</span>
+      <h2 id="totalGain"></h2>
+    </div>
+
+    <div class="card">
+      <span>Return</span>
+      <h2 id="totalReturn"></h2>
+    </div>
+
+    <div class="card volatility-card">
+      <span>Volatility Indicator</span>
+      <h2 id="volatilityText"></h2>
+      <p class="volatility-label">Risk Level</p>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <div class="table-header">
+      <div>Symbol</div>
+      <div>Quantity</div>
+      <div>Purchase Price</div>
+      <div>Current Price</div>
+      <div>Total Value</div>
+      <div>Gain/Loss</div>
+      <div>Risk</div>
+    </div>
+    <div id="portfolioTable"></div>
+  </div>
+
+  <div class="insight">
+    <h3>⚠️ Goal Alignment Insight</h3>
+    <p id="goalInsight"></p>
+  </div>
+
+  <div class="questionnaire-box">
+    <h3>User Input</h3>
+    <p class="subtitle" id="questionSubtitle"></p>
+
+    <div class="q-group">
+      <label>Financial Goal Amount</label>
+      <input type="number" id="goalAmount">
+    </div>
+
+    <div class="q-group">
+      <label>Time Horizon (years)</label>
+      <input type="number" id="timeHorizon">
+    </div>
+
+    <div class="q-group">
+      <label>Risk Tolerance</label>
+      <select id="riskTolerance"></select>
+    </div>
+
+    <div class="q-group">
+      <label>Stocks Already Owned</label>
+      <input type="text" id="ownedStocks">
+      <small>Enter stock symbols separated by commas (optional)</small>
+    </div>
+
+    <button class="primary-btn full-width">
+      ✈️ Get Recommendations
+    </button>
+  </div>
+
+  <div class="recommendation-output">
+
+    <div class="question-box">
+      <div class="question-header">
+        <span class="icon">◎</span>
+        <h4>Required Annual Return</h4>
+      </div>
+
+      <div class="question-value">
+        <span id="requiredReturn"></span>
+        <small>per year</small>
+      </div>
+
+      <p class="question-subtext" id="returnSubtext"></p>
+    </div>
+
+    <div class="stocks-header">
+      <h4>Recommended Stocks</h4>
+      <span class="count" id="stockCount"></span>
+    </div>
+
+    <div class="stocks-list" id="stocksList"></div>
+  </div>
+
+</div>
+
+<div class="modal-overlay" id="addStockModal">
+  <div class="modal">
+    <h2>Add Stock Holding</h2>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Symbol</label>
+        <input id="symbolInput">
+      </div>
+
+      <div class="form-group">
+        <label>Quantity</label>
+        <input type="number" id="qtyInput">
+      </div>
+
+      <div class="form-group">
+        <label>Purchase Price</label>
+        <input type="number" id="priceInput">
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="primary-btn" id="saveStock">Add Holding</button>
+      <button class="cancel-btn" id="closeModal">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="portfolio.js"></script>
+</body>
+</html>

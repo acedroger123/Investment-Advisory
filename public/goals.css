@@ -1,0 +1,181 @@
+body {
+  margin: 0;
+  background: #eef2f9;
+  font-family: Arial, sans-serif;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  overflow-x: hidden;
+  background: #eef2f9;
+  font-family: Arial, sans-serif;
+}
+
+/* ---------- TOP NAVBAR ---------- */
+.topbar {
+  width: 100vw;
+  height: 70px;
+  background: white;
+  padding: 0 30px;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 5px 25px rgba(0,0,0,0.1);
+  z-index: 1000;
+  position: sticky;
+}
+
+
+.nav-links {
+  display: flex;
+  gap: 14px;
+  margin-left: 610px;
+}
+
+.nav-links a {
+  padding: 10px 16px;
+  border-radius: 10px;
+  color: #333;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.nav-links a.active {
+  background: #0556d0;
+  color: white;
+}
+
+.container {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 30px;
+}
+
+.card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 22px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+}
+
+.form-card h2 {
+  margin-bottom: 20px;
+}
+
+.form-card label {
+  font-size: 14px;
+  margin-top: 14px;
+  display: block;
+}
+
+.form-card input,
+.form-card select {
+  width: 100%;
+  padding: 10px;
+  margin-top: 6px;
+  border-radius: 8px;
+  border: none;
+  background: #f0f0f0;
+}
+
+.form-card button {
+  margin-top: 20px;
+  width: 100%;
+  padding: 12px;
+  background: #0b0b1f;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.goal-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 20px;
+  position: relative;
+}
+
+.goal-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.badge {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+.high { background: #ffd6db; color: #b60020; }
+.medium { background: #e5e7eb; }
+.low { background: #d1fae5; color: #047857; }
+
+.status {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+.achievable {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.at-risk {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 10px;
+  background: #ddd;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.progress {
+  height: 100%;
+  background: #0b0b1f;
+}
+
+.goal-details {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 14px;
+}
+
+.info-box {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.info-success {
+  background: #eafff1;
+  color: #065f46;
+}
+
+.info-warning {
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.delete-btn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  cursor: pointer;
+  color: red;
+  font-size: 18px;
+}

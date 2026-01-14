@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Expense Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="expenses.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <title>Portfolio</title>
+</head>
+<body>
+  <nav class="topbar">
+  <div class="nav-links">
+    <a href="dashboard.html">Dashboard</a>
+    <a href="expenses.html" class="active">Expense Tracker</a>
+    <a href="goals.html">Goals</a>
+    <a href="recommendations.html">Recommendations</a>
+    <a href="portfolio.html">Portfolio</a>
+    <a href="review.html">Monthly Review</a>
+    <a href="settings.html">Settings</a>
+  </div>
+</nav>
+
+<div class="container">
+
+
+  <div class="card">
+    <h2>Add Expense</h2>
+
+    <div class="form-row">
+      <div>
+        <label>Amount </label>
+        <input type="number" id="amount" placeholder="0.00">
+      </div>
+
+      <div>
+        <label>Category </label>
+        <select id="category">
+          <option value="">Select category</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div>
+        <label>Nature</label>
+        <input type="text" id="nature" disabled placeholder="Auto-filled based on category">
+      </div>
+
+      <div>
+        <label>Date </label>
+        <input type="date" id="date">
+      </div>
+    </div>
+
+    <label>Note (Optional)</label>
+    <textarea id="note"></textarea>
+
+    <button id="addExpense">Add Expense</button>
+  </div>
+
+  <div class="card">
+    <h2>Monthly Overview</h2>
+    <h1 id="total">₹0.00</h1>
+
+    <div class="breakdown">
+      <span id="fixedStat"></span>
+      <span id="variableStat"></span>
+      <span id="discretionaryStat"></span>
+    </div>
+
+    <p>Savings Rate: <strong id="savings">0%</strong></p>
+  </div>
+
+
+  <div class="card">
+    <h2>Recent Expenses</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Category</th>
+          <th>Nature</th>
+          <th>Amount</th>
+          <th>Note</th>
+        </tr>
+      </thead>
+      <tbody id="expenseList"></tbody>
+    </table>
+  </div>
+  <div class="card warning">
+    <h3>Behavioral Insights (AI)</h3>
+    <p id="behavior"></p>
+  </div>
+
+  <div class="card">
+    <h3>Habit Identification</h3>
+    <p id="habit"></p>
+  </div>
+
+</div>
+  <script src="expenses.js"></script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Goal Tracker</title>
+  <link rel="stylesheet" href="goals.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<nav class="topbar">
+  <div class="nav-links">
+    <a href="dashboard.html">Dashboard</a>
+    <a href="expenses.html">Expense Tracker</a>
+    <a href="goals.html" class="active">Goals</a>
+    <a href="recommendations.html">Recommendations</a>
+    <a href="portfolio.html">Portfolio</a>
+    <a href="review.html">Monthly Review</a>
+    <a href="settings.html">Settings</a>
+  </div>
+</nav>
+
+<div class="container">
+
+  <div class="card form-card">
+    <h2 id="formTitle">Create Goal</h2>
+
+    <label for="goalName">Goal Name</label>
+    <input type="text" id="goalName">
+
+    <label for="targetAmount">Target Amount</label>
+    <input type="number" id="targetAmount">
+
+    <label for="duration">Duration (Months)</label>
+    <input type="number" id="duration">
+
+    <label for="priority">Priority</label>
+    <select id="priority"></select>
+
+    <button id="createGoalBtn">Create Goal</button>
+  </div>
+
+  <div class="goals-section" id="goalsContainer"></div>
+
+</div>
+
+<script src="goals.js"></script>
+</body>
+</html>
