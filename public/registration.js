@@ -1,3 +1,10 @@
+function toggle(id) {
+  const input = document.getElementById(id)
+  if (!input) return
+  input.type = input.type === "password" ? "text" : "password"
+}
+
+
 document.addEventListener("DOMContentLoaded", () => {
 
   const form = document.getElementById("registerForm")
@@ -37,3 +44,5 @@ document.addEventListener("DOMContentLoaded", () => {
     if (res.ok) window.location.href = "questionnaire.html"
   })
 })
+
+

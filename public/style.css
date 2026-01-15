@@ -93,7 +93,7 @@ input:focus {
 
 button {
   width: 90%;
-  margin: 24px auto 0;
+  margin: 18px auto 0;
   display: block;
   padding: 12px;
   border: none;
@@ -108,7 +108,7 @@ button {
 
 .link {
   text-align: center;
-  margin-top: 16px;
+  margin-top: 12px;
   font-size: 12px;
 }
 
@@ -120,6 +120,23 @@ button {
 .link a:hover {
   color: #3b6cb7;
 }
+
+.changepassword {
+  text-align: right;
+  margin-top: 8px;
+  font-size: 12px;
+  padding-right: 6px;
+}
+
+.changepassword a {
+  color: #3b6cb7;
+  text-decoration: underline;
+}
+
+.changepassword a:hover {
+  color: #0556d0;
+}
+
 
 .error {
   color: red;

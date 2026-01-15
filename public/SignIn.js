@@ -1,3 +1,9 @@
+function toggle() {
+  const i = document.getElementById("password")
+  i.type = i.type === "password" ? "text" : "password"
+}
+
+
 document.addEventListener("DOMContentLoaded", () => {
 
   const form = document.getElementById("loginForm")
