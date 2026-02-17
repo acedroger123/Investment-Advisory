@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulation | AI Wealth</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <span class="brand-icon">📈</span>
+            <span class="brand-text">AI Wealth</span>
+        </div>
+        <div class="nav-links">
+            <a href="dashboard.html" class="nav-link">Dashboard</a>
+            <a href="portfolio.html" class="nav-link">Portfolio</a>
+            <a href="goals.html" class="nav-link">Goals</a>
+            <a href="transactions.html" class="nav-link">Transactions</a>
+            <a href="rebalance.html" class="nav-link">Rebalance</a>
+            <a href="simulation.html" class="nav-link active">Simulation</a>
+            <a href="expenses.html" class="nav-link">Expenses</a>
+            <a href="recommendations.html" class="nav-link">AI Advice</a>
+            <a href="review.html" class="nav-link">Review</a>
+            <a href="settings.html" class="nav-link">Settings</a>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <header class="page-header">
+            <div class="header-content">
+                <h1>Monte Carlo Simulation</h1>
+                <p class="subtitle">Probabilistic goal achievement analysis based on your shared portfolio</p>
+            </div>
+        </header>
+
+        <!-- Goal Selector -->
+        <div class="goal-selector-container">
+            <label for="goalSelect">Select Goal:</label>
+            <select id="goalSelect" class="goal-select">
+                <option value="">Select a goal...</option>
+            </select>
+            <button class="btn btn-primary" onclick="runMonteCarloSimulation()">🎲 Run Simulation</button>
+            <button class="btn btn-secondary" onclick="runStressTest()">📉 Stress Test</button>
+        </div>
+
+        <!-- Simulation Results -->
+        <section id="simulationResults" style="display: none;">
+            <div class="results-header">
+                <h2>📊 Simulation Results</h2>
+                <span class="simulation-date" id="simulationDate"></span>
+            </div>
+
+            <!-- Key Metrics + Probability Gauge -->
+            <div class="simulation-results-grid">
+                <!-- Success Probability Gauge -->
+                <div class="chart-container gauge-card">
+                    <div class="chart-header">
+                        <h3>Success Probability</h3>
+                    </div>
+                    <div class="gauge-wrapper">
+                        <canvas id="probabilityGauge"></canvas>
+                    </div>
+                </div>
+
+                <!-- Metrics Cards -->
+                <div class="simulation-results">
+                    <div class="result-card">
+                        <div class="result-value text-success" id="successProbability">--</div>
+                        <div class="result-label">Success Probability</div>
+                    </div>
+                    <div class="result-card">
+                        <div class="risk-badge" id="riskLevel">--</div>
+                        <div class="result-label">Risk Level</div>
+                    </div>
+                    <div class="result-card">
+                        <div class="result-value" id="expectedValue">--</div>
+                        <div class="result-label">Expected Outcome</div>
+                    </div>
+                    <div class="result-card">
+                        <div class="result-value text-danger" id="worstCase">--</div>
+                        <div class="result-label">Worst Case (5%)</div>
+                    </div>
+                    <div class="result-card">
+                        <div class="result-value text-success" id="bestCase">--</div>
+                        <div class="result-label">Best Case (95%)</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Histogram Chart -->
+            <div class="chart-container" style="margin-bottom: var(--spacing-xl);">
+                <div class="chart-header">
+                    <h3>Outcome Distribution</h3>
+                    <span class="badge badge-info" id="simCount">1000 simulations</span>
+                </div>
+                <div class="chart-wrapper" style="height: 350px;">
+                    <canvas id="histogramChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Goal Progress Comparison -->
+            <div class="data-card">
+                <div class="card-header">
+                    <h3>Goal Analysis</h3>
+                </div>
+                <div class="goal-comparison" id="goalComparison">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+
+            <!-- Disclaimer -->
+            <div class="disclaimer-box">
+                <strong>⚠️ Important Disclaimer:</strong>
+                <p id="disclaimerText">This simulation is probabilistic and based on historical data. Actual results may
+                    vary significantly. Past performance does not guarantee future results.</p>
+            </div>
+        </section>
+
+        <!-- Stress Test Results -->
+        <section id="stressTestResults" style="display: none;">
+            <div class="results-header">
+                <h2>📉 Stress Test Results</h2>
+            </div>
+
+            <div class="data-card">
+                <div class="card-header">
+                    <h3>Market Drop Scenarios</h3>
+                </div>
+                <div class="table-wrapper">
+                    <table class="data-table stress-table" id="stressTable">
+                        <thead>
+                            <tr>
+                                <th>Scenario</th>
+                                <th>Original Value</th>
+                                <th>Stressed Value</th>
+                                <th>Loss</th>
+                                <th>New Progress</th>
+                                <th>Est. Delay</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="stress-recommendation" id="stressRecommendation"></div>
+            </div>
+
+            <!-- Stress Test Chart -->
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h3>Impact Comparison</h3>
+                </div>
+                <div class="chart-wrapper" style="height: 300px;">
+                    <canvas id="stressChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Empty State -->
+        <section id="emptyState" class="empty-state">
+            <div class="empty-content">
+                <h3>🎲 Monte Carlo Simulation</h3>
+                <p>Select a goal and run a simulation to estimate your probability of achieving it.</p>
+                <p class="text-muted">The simulation runs thousands of random market scenarios based on your shared
+                    portfolio to give you a probabilistic outlook.</p>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <p>⚠️ <strong>Disclaimer:</strong> This is an educational system. Simulation results are probabilistic, not
+            predictive.</p>
+    </footer>
+
+    <script src="js/api.js"></script>
+    <script src="js/charts.js"></script>
+    <script src="js/simulation.js"></script>
+</body>
+
+</html>

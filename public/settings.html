@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings | AI Wealth</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    /* Page Specific Styles */
+
+    /* Toggle Switch (iOS Style) */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: var(--bg-tertiary);
+      transition: .4s;
+      border-radius: 34px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 2px;
+      bottom: 2px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+
+    input:checked+.slider {
+      background-color: var(--color-primary);
+    }
+
+    input:checked+.slider:before {
+      transform: translateX(20px);
+    }
+
+    /* Danger Zone */
+    .card-danger {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: var(--radius-xl);
+      padding: var(--spacing-lg);
+    }
+
+    .btn-danger-outline {
+      background: transparent;
+      border: 1px solid var(--color-accent-red);
+      color: var(--color-accent-red);
+      width: 100%;
+      padding: var(--spacing-sm) var(--spacing-lg);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      font-weight: 500;
+      transition: all var(--transition-fast);
+    }
+
+    .btn-danger-outline:hover {
+      background: var(--color-accent-red);
+      color: white;
+    }
+
+    /* Notification Row */
+    .notif-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--glass-border);
+    }
+
+    .notif-row:last-child {
+      border-bottom: none;
+    }
+
+    /* Input Disabled State */
+    input:disabled,
+    select:disabled {
+      background-color: var(--bg-tertiary) !important;
+      color: var(--text-muted) !important;
+      cursor: not-allowed;
+      border-color: transparent !important;
+    }
+
+    /* Unlock Button */
+    .btn-outline-sm {
+      font-size: 0.85rem;
+      padding: 6px 12px;
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+
+    .btn-outline-sm:hover {
+      border-color: var(--color-primary);
+      color: var(--color-primary-light);
+    }
+
+    .btn-outline-sm.danger {
+      border-color: rgba(239, 68, 68, 0.5);
+      color: var(--color-accent-red);
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="brand-icon">📈</span>
+      <span class="brand-text">AI Wealth</span>
+    </div>
+    <div class="nav-links">
+      <a href="dashboard.html" class="nav-link">Dashboard</a>
+      <a href="portfolio.html" class="nav-link">Portfolio</a>
+      <a href="goals.html" class="nav-link">Goals</a>
+      <a href="transactions.html" class="nav-link">Transactions</a>
+      <a href="rebalance.html" class="nav-link">Rebalance</a>
+      <a href="simulation.html" class="nav-link">Simulation</a>
+      <a href="expenses.html" class="nav-link">Expenses</a>
+      <a href="recommendations.html" class="nav-link">AI Advice</a>
+      <a href="review.html" class="nav-link">Review</a>
+      <a href="settings.html" class="nav-link active">Settings</a>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    <!-- Header -->
+    <header class="page-header">
+      <div class="header-content">
+        <h1>⚙️ Profile & Settings</h1>
+        <p class="subtitle">Manage your account security and preferences.</p>
+      </div>
+    </header>
+
+    <!-- Settings Grid -->
+    <section class="charts-section" style="grid-template-columns: 1fr 1fr; align-items: start;">
+
+      <!-- Left: Sensitive Account Details -->
+      <div class="data-card">
+        <div class="card-header"
+          style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <div>
+            <h3 style="display: flex; align-items: center; gap: 8px;">
+              🔒 Sensitive Account Details
+            </h3>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 4px;">
+              Editing these requires OTP verification.
+            </p>
+          </div>
+          <div>
+            <button id="unlockBtn" class="btn-outline-sm">🔓 Unlock Settings</button>
+            <button id="lockBtn" class="btn-outline-sm danger" style="display: none;">🔒 Lock Now</button>
+          </div>
+        </div>
+
+        <form id="profileForm">
+          <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" id="email" value="loading..." disabled>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Date of Birth</label>
+              <input type="date" id="dob" disabled>
+            </div>
+            <div class="form-group">
+              <label>Country</label>
+              <input type="text" id="country" value="Loading..." disabled>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Occupation</label>
+            <input type="text" id="occupation" value="Loading..." disabled>
+          </div>
+
+          <div class="form-group">
+            <label>Annual Income Range</label>
+            <select id="incomeRange" disabled>
+              <option value="1">Below ₹5 Lakhs</option>
+              <option value="2">₹5 Lakhs - ₹15 Lakhs</option>
+              <option value="3">₹15 Lakhs - ₹50 Lakhs</option>
+              <option value="4">Above ₹50 Lakhs</option>
+            </select>
+          </div>
+
+          <div style="margin-top: 30px;">
+            <button type="submit" id="saveProfileBtn" class="btn btn-primary" style="width: 100%;" disabled>
+              Save Changes
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Right Column -->
+      <div style="display: flex; flex-direction: column; gap: 20px;">
+
+        <!-- Notifications -->
+        <div class="data-card">
+          <div class="card-header">
+            <h3>🔔 Notifications</h3>
+          </div>
+          <p style="font-size: 0.85rem; margin-bottom: 20px; color: var(--text-muted);">Customize how you
+            receive updates.</p>
+
+          <div class="notif-row">
+            <div>
+              <div style="font-weight: 500; font-size: 0.9rem;">Email Notifications</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">General alerts and updates</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="notifEmail">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="notif-row">
+            <div>
+              <div style="font-weight: 500; font-size: 0.9rem;">Push Notifications</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">Browser & device alerts</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="notifPush">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="notif-row">
+            <div>
+              <div style="font-weight: 500; font-size: 0.9rem;">Monthly Reports</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">Email summary of activity</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="notifReport">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <button id="saveNotifBtn" class="btn btn-primary" style="width: 100%; margin-top: 20px;">Save
+            Preferences</button>
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="card-danger">
+          <h3 style="color: var(--color-accent-red); margin-bottom: 5px;">Session Management</h3>
+          <p style="font-size: 0.85rem; margin-bottom: 15px; color: rgba(239, 68, 68, 0.8);">Sign out of your
+            account on this device.</p>
+          <button id="logoutBtn" class="btn-danger-outline">Sign Out</button>
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  <!-- OTP Modal -->
+  <div id="otpModal"
+    style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(4px); z-index: 1000; align-items: center; justify-content: center;">
+    <div class="data-card" style="width: 400px; padding: 30px; border-color: rgba(99, 102, 241, 0.5);">
+      <h2 style="margin-bottom: 10px;">Security Verification</h2>
+      <p style="margin-bottom: 20px; font-size: 0.9rem; color: var(--text-muted);">We sent a 6-digit code to your
+        email. Enter it below to unlock settings.</p>
+
+      <div class="form-group">
+        <label>Enter OTP</label>
+        <input type="text" id="otpInput" placeholder="123456"
+          style="text-align: center; letter-spacing: 5px; font-size: 1.5rem;">
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-top: 20px;">
+        <button type="button" id="cancelOtp" class="btn btn-secondary" style="flex: 1;">Cancel</button>
+        <button type="button" id="verifyOtp" class="btn btn-primary" style="flex: 1;">Verify</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>⚠️ <strong>Disclaimer:</strong> This is an educational system. It does not provide financial advice.</p>
+  </footer>
+
+  <script src="settings.js"></script>
+</body>
+
+</html>

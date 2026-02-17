@@ -1,0 +1,338 @@
+/* ============================================
+   Auth Pages Stylesheet
+   Extends css/styles.css — do NOT duplicate tokens.
+   This file is ONLY for auth-specific layout.
+   ============================================ */
+
+/* ============================================
+   Body Override (Full-Viewport Auth Layout)
+   ============================================ */
+body.auth-body {
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+}
+
+/* ============================================
+   Split Layout
+   ============================================ */
+.auth-container {
+    display: flex;
+    height: 100vh;
+    width: 100%;
+}
+
+/* Left Side: Branding */
+.brand-side {
+    flex: 1;
+    background: var(--gradient-primary);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    padding: 60px;
+}
+
+/* Abstract Background Shapes */
+.brand-side::before {
+    content: "";
+    position: absolute;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, transparent 70%);
+    top: -150px;
+    left: -150px;
+    border-radius: 50%;
+}
+
+.brand-side::after {
+    content: "";
+    position: absolute;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(0, 0, 0, 0.2) 0%, transparent 70%);
+    bottom: -100px;
+    right: -100px;
+    border-radius: 50%;
+}
+
+.brand-content {
+    position: relative;
+    z-index: 10;
+    max-width: 480px;
+    color: white;
+}
+
+.brand-content .logo-area {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 30px;
+}
+
+.brand-content .logo-text {
+    font-size: var(--font-size-2xl);
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    color: white;
+}
+
+.hero-title {
+    font-size: var(--font-size-4xl);
+    font-weight: 800;
+    line-height: 1.1;
+    margin-bottom: 25px;
+    color: white;
+}
+
+.hero-subtitle {
+    font-size: var(--font-size-lg);
+    line-height: 1.6;
+    opacity: 0.9;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+/* Right Side: Form */
+.form-side {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-primary);
+    padding: 40px;
+    overflow-y: auto;
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 420px;
+    padding: var(--spacing-xl);
+    background: var(--bg-card);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    backdrop-filter: var(--glass-blur);
+}
+
+/* ============================================
+   Card Header (Auth)
+   ============================================ */
+.auth-card .card-header {
+    margin-bottom: 30px;
+    text-align: center;
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.auth-card .card-header h2 {
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    margin-bottom: var(--spacing-sm);
+    color: var(--text-primary);
+    background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.auth-card .card-header p {
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+}
+
+/* ============================================
+   Auth Form Input Wrapper with Icon
+   ============================================ */
+.input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.input-icon {
+    position: absolute;
+    left: 14px;
+    color: var(--text-muted);
+    z-index: 1;
+}
+
+/* Inputs inside auth-card get left icon padding */
+.auth-card .input-wrapper input {
+    padding-left: 40px;
+}
+
+.toggle-password {
+    position: absolute;
+    right: 14px;
+    background: none;
+    border: none;
+    color: var(--color-primary-light);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+    transition: color var(--transition-fast);
+}
+
+.toggle-password:hover {
+    color: var(--color-primary);
+}
+
+/* ============================================
+   Auth Buttons
+   ============================================ */
+.primary-btn {
+    width: 100%;
+    padding: var(--spacing-md);
+    background: var(--gradient-primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    margin-top: var(--spacing-sm);
+    box-shadow: var(--shadow-md), 0 0 20px rgba(99, 102, 241, 0.3);
+    font-family: var(--font-primary);
+}
+
+.primary-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg), 0 0 30px rgba(99, 102, 241, 0.4);
+}
+
+.primary-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* ============================================
+   Form Actions & Links
+   ============================================ */
+.auth-card .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: var(--spacing-lg);
+    margin-top: 0;
+}
+
+.forgot-link {
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+    text-decoration: none;
+    transition: color var(--transition-fast);
+}
+
+.forgot-link:hover {
+    color: var(--color-primary-light);
+}
+
+.auth-footer {
+    margin-top: 25px;
+    text-align: center;
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
+}
+
+.auth-footer a {
+    color: var(--color-primary-light);
+    font-weight: 600;
+    text-decoration: none;
+    transition: color var(--transition-fast);
+}
+
+.auth-footer a:hover {
+    color: var(--color-primary);
+}
+
+/* ============================================
+   Back-to-Login Link
+   ============================================ */
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: var(--font-size-sm);
+    margin-bottom: 20px;
+    transition: color var(--transition-fast);
+}
+
+.back-link:hover {
+    color: var(--color-primary-light);
+}
+
+/* ============================================
+   Error / Validation
+   ============================================ */
+.error {
+    color: var(--color-accent-red);
+    font-size: var(--font-size-xs);
+    margin-top: var(--spacing-xs);
+    display: block;
+}
+
+/* ============================================
+   Modal (Privacy — Auth)
+   ============================================ */
+.auth-card~.modal,
+body.auth-body .modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+}
+
+body.auth-body .modal-content {
+    background: var(--bg-secondary);
+    padding: var(--spacing-xl);
+    border-radius: var(--radius-xl);
+    width: 90%;
+    max-width: 450px;
+    text-align: center;
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-lg);
+    animation: slideUp 0.3s ease;
+}
+
+body.auth-body .modal-content h3 {
+    margin-bottom: 15px;
+    color: var(--text-primary);
+    font-size: var(--font-size-xl);
+}
+
+body.auth-body .modal-content p {
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 25px;
+    font-size: var(--font-size-sm);
+}
+
+/* ============================================
+   Responsive
+   ============================================ */
+@media (max-width: 900px) {
+    .brand-side {
+        display: none;
+    }
+
+    .form-side {
+        width: 100%;
+        padding: var(--spacing-lg);
+    }
+
+    .auth-card {
+        max-width: 100%;
+        border: none;
+        background: transparent;
+        box-shadow: none;
+        backdrop-filter: none;
+    }
+}

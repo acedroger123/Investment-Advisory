@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Investment Profile | AI Wealth</title>
+  <meta name="description" content="Set up your investment profile for AI-powered wealth management.">
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <link rel="stylesheet" href="css/styles.css">
+
+  <style>
+    /* Page Layout - Centered */
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    /* Wizard Card — uses unified design tokens */
+    .wizard-card {
+      width: 100%;
+      max-width: 600px;
+      background: var(--bg-card);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-xl);
+      padding: var(--spacing-xl);
+      box-shadow: var(--shadow-lg);
+      backdrop-filter: var(--glass-blur);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .wizard-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--gradient-primary);
+    }
+
+    /* Progress Bar */
+    .progress-container {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: var(--spacing-xl);
+      position: relative;
+    }
+
+    .progress-container::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: var(--bg-tertiary);
+      z-index: 0;
+      transform: translateY(-50%);
+    }
+
+    .progress-step {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--bg-secondary);
+      border: 2px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: var(--font-size-sm);
+      font-weight: 600;
+      color: var(--text-muted);
+      position: relative;
+      z-index: 1;
+      transition: all var(--transition-base);
+    }
+
+    .progress-step.active {
+      border-color: var(--color-primary);
+      background: var(--color-primary);
+      color: white;
+      box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+    }
+
+    .progress-step.completed {
+      background: var(--color-primary);
+      border-color: var(--color-primary);
+      color: white;
+    }
+
+    /* Steps Animation */
+    .step {
+      display: none;
+      animation: fadeIn 0.4s ease forwards;
+    }
+
+    .step.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateX(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    /* Form element overrides */
+    h3 {
+      margin-bottom: var(--spacing-lg);
+      font-size: var(--font-size-2xl);
+      text-align: center;
+      color: var(--text-primary);
+      background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* Custom Range Slider */
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      background: transparent;
+      margin: 15px 0;
+    }
+
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 20px;
+      width: 20px;
+      border-radius: 50%;
+      background: var(--color-primary);
+      cursor: pointer;
+      margin-top: -8px;
+      box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
+    }
+
+    input[type=range]::-webkit-slider-runnable-track {
+      width: 100%;
+      height: 4px;
+      cursor: pointer;
+      background: var(--bg-tertiary);
+      border-radius: 2px;
+    }
+
+    /* Navigation Buttons container */
+    .nav-buttons {
+      display: flex;
+      justify-content: space-between;
+      margin-top: var(--spacing-xl);
+      padding-top: var(--spacing-lg);
+      border-top: 1px solid var(--glass-border);
+    }
+
+    /* Wizard logo area */
+    .wizard-logo {
+      text-align: center;
+      margin-bottom: var(--spacing-lg);
+    }
+
+    .wizard-logo h2 {
+      font-size: var(--font-size-xl);
+      margin-top: var(--spacing-xs);
+      color: var(--text-primary);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="wizard-card">
+
+    <div class="wizard-logo">
+      <i data-lucide="wallet" style="color: var(--color-primary-light); width: 40px; height: 40px;"></i>
+      <h2>AI Wealth Setup</h2>
+    </div>
+
+    <div class="progress-container">
+      <div class="progress-step active">1</div>
+      <div class="progress-step">2</div>
+      <div class="progress-step">3</div>
+      <div class="progress-step">4</div>
+    </div>
+
+    <form id="questionnaireForm">
+
+      <section class="step active">
+        <h3>About You</h3>
+
+        <div class="form-group">
+          <label>How old are you?</label>
+          <select id="age_group">
+            <option value="1">18–25</option>
+            <option value="2">26–35</option>
+            <option value="3">36–45</option>
+            <option value="4">46–55</option>
+            <option value="5">Above 55</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>What best describes your current situation?</label>
+          <select id="occupation">
+            <option value="Student">Student</option>
+            <option value="Professional">Working professional</option>
+            <option value="Business">Self-employed / Business owner</option>
+            <option value="Retired">Retired</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Your approximate monthly income</label>
+          <select id="income_range">
+            <option value="1">Below ₹20,000</option>
+            <option value="2">₹20,000 – ₹50,000</option>
+            <option value="3">₹50,000 – ₹1,00,000</option>
+            <option value="4">Above ₹1,00,000</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>How much of your income do you usually save?</label>
+          <select id="savings_percent">
+            <option value="1">Less than 10%</option>
+            <option value="2">10 – 20%</option>
+            <option value="3">21 – 30%</option>
+            <option value="4">More than 30%</option>
+          </select>
+        </div>
+
+        <div class="nav-buttons" style="justify-content: flex-end;">
+          <button type="button" class="btn btn-primary" onclick="nextStep()">Next <i data-lucide="arrow-right"
+              size="16"></i></button>
+        </div>
+      </section>
+
+      <section class="step">
+        <h3>Experience</h3>
+
+        <div class="form-group">
+          <label>Have you invested money before?</label>
+          <select id="investment_experience">
+            <option value="1">No, never</option>
+            <option value="2">Yes, recently</option>
+            <option value="3">Yes, for a few years</option>
+            <option value="4">Yes, for many years</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>How many different types of investments have you tried?</label>
+          <input type="number" id="instruments_used_count" min="0" placeholder="e.g. 2">
+        </div>
+
+        <div class="form-group">
+          <label>How comfortable are you understanding risk and returns? (1-5)</label>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: var(--font-size-sm); color: var(--text-muted);">Low</span>
+            <input type="range" id="financial_comfort" min="1" max="5">
+            <span style="font-size: var(--font-size-sm); color: var(--text-muted);">High</span>
+          </div>
+        </div>
+
+        <div class="nav-buttons">
+          <button type="button" class="btn btn-secondary" onclick="prevStep()">Back</button>
+          <button type="button" class="btn btn-primary" onclick="nextStep()">Next <i data-lucide="arrow-right"
+              size="16"></i></button>
+        </div>
+      </section>
+
+      <section class="step">
+        <h3>Risk Profile</h3>
+
+        <div class="form-group">
+          <label>If your investment drops, what would you do?</label>
+          <select id="loss_reaction">
+            <option value="1">Withdraw immediately</option>
+            <option value="2">Wait for recovery</option>
+            <option value="3">Buy more</option>
+            <option value="4">Not sure</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>What matters more to you?</label>
+          <select id="return_priority">
+            <option value="1">Safety (Low Risk)</option>
+            <option value="2">Balance</option>
+            <option value="3">High returns (High Risk)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>How do you feel about market volatility?</label>
+          <select id="volatility_comfort">
+            <option value="1">Very uncomfortable</option>
+            <option value="2">Uncomfortable</option>
+            <option value="3">Neutral</option>
+            <option value="4">Comfortable</option>
+          </select>
+        </div>
+
+        <div class="nav-buttons">
+          <button type="button" class="btn btn-secondary" onclick="prevStep()">Back</button>
+          <button type="button" class="btn btn-primary" onclick="nextStep()">Next <i data-lucide="arrow-right"
+              size="16"></i></button>
+        </div>
+      </section>
+
+      <section class="step">
+        <h3>Financial Goals</h3>
+
+        <div class="form-group">
+          <label>What is your main financial goal?</label>
+          <select id="goal">
+            <option value="Emergency savings">Emergency savings</option>
+            <option value="Education">Education</option>
+            <option value="House">Buying house</option>
+            <option value="Retirement">Retirement</option>
+            <option value="Wealth">Growing wealth</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Investment time horizon?</label>
+          <select id="time_horizon">
+            <option value="1">Less than 3 years</option>
+            <option value="2">3–5 years</option>
+            <option value="3">6–10 years</option>
+            <option value="4">More than 10 years</option>
+          </select>
+        </div>
+
+        <div class="nav-buttons">
+          <button type="button" class="btn btn-secondary" onclick="prevStep()">Back</button>
+          <button type="submit" class="btn btn-primary">Submit & Finish</button>
+        </div>
+      </section>
+
+    </form>
+  </div>
+
+  <script src="questionnaire.js"></script>
+  <script>lucide.createIcons();</script>
+</body>
+
+</html>

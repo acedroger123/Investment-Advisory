@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Wealth | Smart Financial Management</title>
+  <meta name="description"
+    content="AI-powered portfolio management and expense tracking. Optimize your net worth with intelligent financial insights.">
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    /* Landing page body overflow override */
+    body {
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Navigation -->
+  <nav class="landing-navbar">
+    <div class="nav-brand">
+      <span class="brand-icon">📈</span>
+      <span class="brand-text">AI Wealth</span>
+    </div>
+    <div class="nav-actions">
+      <a href="SignIn.html" class="btn btn-secondary">Log In</a>
+      <a href="Registration.html" class="btn btn-primary">Get Started</a>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="hero-glow"></div>
+    <div class="container">
+      <div class="hero-badge">
+        <i data-lucide="indian-rupee" size="14"></i> Optimized for Indian Investors
+      </div>
+      <h1>Financial Freedom, <br>Powered by AI.</h1>
+      <p>Stop guessing with your money. Track your net worth, categorize expenses, and let our AI optimize your
+        portfolio for maximum growth.</p>
+      <div class="hero-cta">
+        <a href="Registration.html" class="btn btn-primary">Start Your Journey</a>
+        <a href="SignIn.html" class="btn btn-secondary">Log In to Dashboard</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="features-section">
+    <div class="container">
+      <div class="section-header">
+        <h2>Everything you need.</h2>
+        <p>No more spreadsheets. Just smart, automated wealth management.</p>
+      </div>
+
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-icon"><i data-lucide="sparkles" size="24"></i></div>
+          <h3>AI-Driven Insights</h3>
+          <p>Our AI scans your spending and investing habits to find hidden savings and optimize your financial
+            strategy.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon"><i data-lucide="pie-chart" size="24"></i></div>
+          <h3>Live Portfolio</h3>
+          <p>Monitor assets in real-time. Calculate risk exposure and get smart alerts on market shifts and rebalancing
+            needs.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon"><i data-lucide="target" size="24"></i></div>
+          <h3>Automated Goals</h3>
+          <p>Set targets for retirement, a dream car, or emergency fund. We'll calculate the path to get you there.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ Section -->
+  <section class="faqs-section">
+    <div class="container">
+      <div class="section-header">
+        <h2>Frequently Asked Questions</h2>
+        <p>Everything you need to know about AI Wealth.</p>
+      </div>
+
+      <div class="faq-container">
+        <div class="faq-item">
+          <button class="faq-question">
+            <span>Is my financial data secure?</span>
+            <i data-lucide="chevron-down"></i>
+          </button>
+          <div class="faq-answer">
+            Yes. We use industry-standard encryption and secure PostgreSQL databases. All sensitive settings are locked
+            behind email-based OTP verification for maximum security.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-question">
+            <span>Do I need to connect my bank account?</span>
+            <i data-lucide="chevron-down"></i>
+          </button>
+          <div class="faq-answer">
+            No, AI Wealth focuses on privacy. You manually log your expenses, income, and stock holdings. Our AI then
+            analyzes this inputted data to give you recommendations.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-question">
+            <span>Can I change my goals later?</span>
+            <i data-lucide="chevron-down"></i>
+          </button>
+          <div class="faq-answer">
+            Absolutely. You can add, edit, or delete your financial goals at any time from your Goals Dashboard. The AI
+            will automatically recalculate your required monthly savings.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-question">
+            <span>Is AI Wealth available in Indian Rupees (₹)?</span>
+            <i data-lucide="chevron-down"></i>
+          </button>
+          <div class="faq-answer">
+            Yes! AI Wealth is fully optimized for the Indian market, utilizing Rupees (₹) and the Indian Numbering
+            System (Lakhs & Crores).
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Banner -->
+  <section class="container">
+    <div class="cta-banner">
+      <h2>Ready to optimize your net worth?</h2>
+      <p>Join thousands of smart investors using AI Wealth.</p>
+      <a href="Registration.html" class="btn btn-primary"
+        style="padding: 15px 30px; font-size: var(--font-size-lg);">Create Free Account</a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="landing-footer">
+    <div class="container">
+      <p>&copy; 2024 AI Wealth Inc. Developed for Final Year Project.</p>
+    </div>
+  </footer>
+
+  <script>
+    lucide.createIcons();
+
+    // FAQ Accordion Logic
+    const faqItems = document.querySelectorAll('.faq-item');
+
+    faqItems.forEach(item => {
+      const question = item.querySelector('.faq-question');
+      question.addEventListener('click', () => {
+        const isActive = item.classList.contains('active');
+
+        // Close all other open items
+        faqItems.forEach(faq => faq.classList.remove('active'));
+
+        // If it wasn't active, open it
+        if (!isActive) {
+          item.classList.add('active');
+        }
+      });
+    });
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,299 @@
+/* ---------- LOVABLE / MODERN DARK THEME ---------- */
+:root {
+  /* Colors */
+  --background: 222 47% 11%;    /* #0f172a */
+  --foreground: 210 40% 98%;    /* #f8fafc */
+  
+  --card: 222 47% 14%;          
+  --card-foreground: 210 40% 98%;
+  
+  --primary: 217 91% 60%;       /* #3b82f6 */
+  --primary-foreground: 222 47% 11%;
+  
+  --muted: 217 33% 17%;
+  --muted-foreground: 215 20% 65%; /* #94a3b8 */
+  
+  --accent: 217 33% 20%;
+  --border: 217 33% 20%;        
+  
+  --success: 142 71% 45%;       
+  --warning: 38 92% 50%;        
+  --danger: 0 84% 60%;          
+
+  --radius: 0.75rem;            
+  --font-sans: "Inter", sans-serif;
+  
+  /* Sidebar Variables */
+  --sidebar-width: 260px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-sans);
+  display: flex;
+  min-height: 100vh;
+  overflow-x: hidden; /* Prevent horizontal scroll */
+}
+
+/* ---------- TYPOGRAPHY ---------- */
+h1, h2, h3, h4 {
+  letter-spacing: -0.025em;
+  color: hsl(var(--foreground));
+}
+
+p, span, label {
+  color: hsl(var(--muted-foreground));
+}
+
+/* ---------- SIDEBAR ---------- */
+.sidebar {
+  width: var(--sidebar-width);
+  background-color: hsl(var(--card));
+  border-right: 1px solid hsl(var(--border));
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  z-index: 50;
+  padding: 1.5rem;
+  transition: transform 0.3s ease;
+}
+
+.logo-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 2.5rem;
+  padding-left: 0.5rem;
+}
+
+.logo-text {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+}
+
+.nav-links {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.nav-links a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.nav-links a:hover {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--foreground));
+}
+
+.nav-links a.active {
+  background-color: hsl(var(--primary) / 0.15);
+  color: hsl(var(--primary));
+}
+
+/* ---------- MAIN LAYOUT (Responsive Core) ---------- */
+.main-content {
+  margin-left: var(--sidebar-width);
+  width: calc(100% - var(--sidebar-width));
+  padding: 2rem;
+  min-height: 100vh;
+}
+
+/* This container limits width on giant screens (Ultra-wide monitors) */
+.page-container {
+  max-width: 1600px; /* Matches your React AppLayout */
+  margin: 0 auto;
+  width: 100%;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap; /* Allows header to wrap on small screens */
+  gap: 1rem;
+}
+
+/* ---------- GRID SYSTEM (Adaptive) ---------- */
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* 3 Columns on large screens */
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 2fr 1fr; /* 2/3 and 1/3 split on large screens */
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+/* KPI Grid (Used in Dashboard & Review) */
+.grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+/* ---------- CARDS ---------- */
+.card {
+  background-color: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  transition: transform 0.2s ease;
+  height: 100%; /* Ensures cards in the same row are equal height */
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- RESPONSIVE BREAKPOINTS ---------- */
+
+/* 1. Large Laptops / Desktops (1280px - 1500px) */
+@media (max-width: 1500px) {
+  .grid-4 {
+    grid-template-columns: repeat(2, 1fr); /* 4 columns become 2 rows of 2 */
+  }
+}
+
+/* 2. Standard Laptops / Tablets Landscape (1024px - 1280px) */
+@media (max-width: 1280px) {
+  .grid-3 {
+    grid-template-columns: repeat(2, 1fr); /* 3 columns become 2 */
+  }
+  .grid-2 {
+    grid-template-columns: 1fr; /* Sidebars stack below main content */
+  }
+}
+
+/* 3. Tablets Portrait / Large Phones (Max 1024px) */
+@media (max-width: 1024px) {
+  .sidebar {
+    transform: translateX(-100%); /* Hide sidebar */
+    position: fixed;
+  }
+  
+  .main-content {
+    margin-left: 0;
+    width: 100%;
+    padding: 1.5rem;
+  }
+
+  .grid-3, .grid-4 {
+    grid-template-columns: 1fr; /* All grids become single column */
+  }
+  
+  /* Add a hamburger menu trigger if you strictly need mobile nav, 
+     but for desktop focus, this handles window resizing gracefully. */
+}
+
+/* ---------- FORMS & INPUTS ---------- */
+.form-group { margin-bottom: 1.25rem; }
+
+label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  color: hsl(var(--foreground));
+}
+
+input, select, textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background-color: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  color: hsl(var(--foreground));
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2);
+}
+
+/* ---------- BUTTONS ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  gap: 0.5rem;
+}
+
+.btn-primary {
+  background-color: hsl(var(--primary));
+  color: white;
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--muted-foreground));
+}
+
+/* ---------- TABLES ---------- */
+.table-container {
+  width: 100%;
+  overflow-x: auto; /* Scrollable tables on small screens */
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 600px; /* Forces scroll on small screens instead of breaking layout */
+}
+
+th, td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+th { color: hsl(var(--muted-foreground)); }
+td { color: hsl(var(--foreground)); }
+
+/* ---------- ANIMATIONS ---------- */
+.animate-fade-up {
+  animation: fadeUp 0.6s ease-out forwards;
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+@keyframes fadeUp {
+  to { opacity: 1; transform: translateY(0); }
+}

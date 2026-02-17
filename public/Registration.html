@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Account | AI Wealth</title>
+  <meta name="description"
+    content="Create your AI Wealth account for AI-powered investment advisory and portfolio management.">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="auth-body">
+
+  <div class="auth-container">
+
+    <section class="brand-side">
+      <div class="brand-content">
+        <div class="logo-area">
+          <i data-lucide="wallet" size="48" color="white"></i>
+          <span class="logo-text">AI Wealth</span>
+        </div>
+        <h1 class="hero-title">Start Investing Smarter.</h1>
+        <p class="hero-subtitle">
+          Join us today for AI-powered advisory and advanced portfolio management.
+        </p>
+      </div>
+    </section>
+
+    <section class="form-side">
+      <div class="auth-card">
+        <div class="card-header">
+          <h2>Create Account</h2>
+          <p>Set up your profile to get started</p>
+        </div>
+
+        <form id="registerForm">
+
+          <div class="form-group">
+            <label for="name">Full Name</label>
+            <div class="input-wrapper">
+              <i data-lucide="user" class="input-icon" size="18"></i>
+              <input type="text" id="name" placeholder="Aditya Gupta" required>
+            </div>
+            <small class="error" id="nameError"></small>
+          </div>
+
+          <div class="form-group">
+            <label for="email">Email Address</label>
+            <div class="input-wrapper">
+              <i data-lucide="mail" class="input-icon" size="18"></i>
+              <input type="email" id="email" placeholder="name@example.com" required>
+            </div>
+            <small class="error" id="emailError"></small>
+          </div>
+
+          <div class="form-group">
+            <label for="password">Password</label>
+            <div class="input-wrapper">
+              <i data-lucide="lock" class="input-icon" size="18"></i>
+              <input type="password" id="password" placeholder="Create password" required>
+              <button type="button" class="toggle-password" onclick="toggle('password')">Show</button>
+            </div>
+            <small class="error" id="passwordError"></small>
+          </div>
+
+          <div class="form-group">
+            <label for="confirmPassword">Confirm Password</label>
+            <div class="input-wrapper">
+              <i data-lucide="lock" class="input-icon" size="18"></i>
+              <input type="password" id="confirmPassword" placeholder="Confirm password" required>
+              <button type="button" class="toggle-password" onclick="toggle('confirmPassword')">Show</button>
+            </div>
+            <small class="error" id="confirmPasswordError"></small>
+          </div>
+
+          <button type="submit" class="primary-btn">Register</button>
+
+          <div class="auth-footer">
+            <p>Already have an account? <a href="SignIn.html">Sign In</a></p>
+          </div>
+
+        </form>
+      </div>
+    </section>
+  </div>
+
+  <div id="privacyModal" class="modal">
+    <div class="modal-content">
+      <div style="margin-bottom: 15px;">
+        <i data-lucide="shield-check" size="48" style="color: var(--color-primary-light)"></i>
+      </div>
+      <h3>Data Usage & Privacy</h3>
+      <p>
+        By continuing, you consent to the collection and use of your financial
+        and personal data for investment analysis. Your data is encrypted and secure.
+      </p>
+      <button id="acceptBtn" class="primary-btn">I Accept & Continue</button>
+    </div>
+  </div>
+
+  <script src="Registration.js"></script>
+  <script>
+    lucide.createIcons();
+    function toggle(id) {
+      const input = document.getElementById(id);
+      input.type = input.type === "password" ? "text" : "password";
+    }
+  </script>
+</body>
+
+</html>

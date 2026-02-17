@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portfolio | AI Wealth</title>
+  <meta name="description"
+    content="Real-time portfolio snapshot with holdings, performance metrics, and allocation charts">
+  <link rel="stylesheet" href="css/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="brand-icon">📈</span>
+      <span class="brand-text">AI Wealth</span>
+    </div>
+    <div class="nav-links">
+      <a href="dashboard.html" class="nav-link">Dashboard</a>
+      <a href="portfolio.html" class="nav-link active">Portfolio</a>
+      <a href="goals.html" class="nav-link">Goals</a>
+      <a href="transactions.html" class="nav-link">Transactions</a>
+      <a href="rebalance.html" class="nav-link">Rebalance</a>
+      <a href="simulation.html" class="nav-link">Simulation</a>
+      <a href="expenses.html" class="nav-link">Expenses</a>
+      <a href="recommendations.html" class="nav-link">AI Advice</a>
+      <a href="review.html" class="nav-link">Review</a>
+      <a href="settings.html" class="nav-link">Settings</a>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Header Section -->
+    <header class="page-header">
+      <div class="header-content">
+        <h1>Portfolio Overview</h1>
+        <p class="subtitle">Real-time snapshot of your investment holdings and performance</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-icon" onclick="refreshPortfolio()" title="Refresh">🔄</button>
+      </div>
+    </header>
+
+    <!-- Goal Selector -->
+    <div class="goal-selector-container">
+      <label for="portfolioGoalSelect">Select Goal:</label>
+      <select id="portfolioGoalSelect" class="goal-select" onchange="loadPortfolioData()">
+        <option value="">Select a goal...</option>
+      </select>
+      <span class="shared-badge">📊 Portfolio View</span>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="portfolioLoading" class="portfolio-loading" style="display: none;">
+      <div class="loading-spinner"></div>
+      <span>Loading portfolio data...</span>
+    </div>
+
+    <!-- Portfolio Content (hidden until goal selected) -->
+    <div id="portfolioContent" style="display: none;">
+
+      <!-- Summary Stats -->
+      <section class="stats-grid">
+        <div class="stat-card gradient-blue">
+          <div class="stat-icon">💰</div>
+          <div class="stat-content">
+            <span class="stat-label">Total Invested</span>
+            <span class="stat-value" id="totalInvested">₹0</span>
+            <span class="stat-subtext" id="holdingsCount">0 holdings</span>
+          </div>
+        </div>
+        <div class="stat-card gradient-green">
+          <div class="stat-icon">📈</div>
+          <div class="stat-content">
+            <span class="stat-label">Current Value</span>
+            <span class="stat-value" id="currentValue">₹0</span>
+            <span class="stat-subtext" id="lastUpdated">Updated just now</span>
+          </div>
+        </div>
+        <div class="stat-card gradient-purple">
+          <div class="stat-icon">📊</div>
+          <div class="stat-content">
+            <span class="stat-label">Unrealized P/L</span>
+            <span class="stat-value" id="unrealizedPnl">₹0</span>
+            <span class="stat-change" id="overallReturn">0%</span>
+          </div>
+        </div>
+        <div class="stat-card gradient-orange">
+          <div class="stat-icon">🚀</div>
+          <div class="stat-content">
+            <span class="stat-label">Overall Return</span>
+            <span class="stat-value" id="cagrValue">0%</span>
+            <span class="stat-subtext" id="cagrLabel">CAGR</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Charts Section -->
+      <section class="charts-section">
+        <div class="chart-container">
+          <div class="chart-header">
+            <h3>Portfolio Value Over Time</h3>
+            <div class="chart-actions">
+              <button class="chart-btn active" data-range="30" onclick="changeHistoryRange(30, this)">30D</button>
+              <button class="chart-btn" data-range="90" onclick="changeHistoryRange(90, this)">90D</button>
+              <button class="chart-btn" data-range="365" onclick="changeHistoryRange(365, this)">1Y</button>
+            </div>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="portfolioValueChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-container">
+          <div class="chart-header">
+            <h3>Stock-wise Allocation</h3>
+          </div>
+          <div class="chart-wrapper pie-wrapper">
+            <canvas id="stockAllocationChart"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- Holdings Table -->
+      <section class="data-section" style="grid-template-columns: 1fr;">
+        <div class="data-card">
+          <div class="card-header">
+            <h3>Current Holdings</h3>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <span class="badge badge-info" id="holdingsBadge">0 stocks</span>
+              <button class="btn btn-secondary btn-sm" onclick="window.location.href='transactions.html'">
+                Add Transaction
+              </button>
+            </div>
+          </div>
+          <div class="table-wrapper">
+            <table class="data-table" id="holdingsTable">
+              <thead>
+                <tr>
+                  <th>Stock</th>
+                  <th>Quantity</th>
+                  <th>Avg Buy Price</th>
+                  <th>Current Price</th>
+                  <th>Current Value</th>
+                  <th>P/L</th>
+                  <th>Return %</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="empty-row">
+                  <td colspan="7">Select a goal to view holdings.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Recent Transactions -->
+      <section class="data-section" style="grid-template-columns: 1fr;">
+        <div class="data-card">
+          <div class="card-header">
+            <h3>Recent Transactions</h3>
+            <button class="btn btn-secondary btn-sm" onclick="window.location.href='transactions.html'">
+              View All →
+            </button>
+          </div>
+          <div class="recent-transactions-list" id="recentTransactionsList">
+            <div class="transaction-item empty-state">
+              <span class="rec-icon">📋</span>
+              <span class="rec-text">No recent transactions. Add your first transaction to get
+                started.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Empty State (when no goal selected) -->
+    <div id="portfolioEmptyState" class="portfolio-empty-state">
+      <div class="empty-state-content">
+        <div class="empty-state-icon">📊</div>
+        <h2>Select a Goal</h2>
+        <p>Choose a goal from the dropdown above to view your portfolio overview, holdings, and performance
+          metrics.</p>
+        <button class="btn btn-primary" onclick="document.getElementById('portfolioGoalSelect').focus()">
+          Select Goal
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>⚠️ <strong>Disclaimer:</strong> This is an educational system. It does not provide financial advice or
+      guarantee returns.</p>
+  </footer>
+
+  <script src="js/api.js"></script>
+  <script src="js/portfolio.js"></script>
+</body>
+
+</html>

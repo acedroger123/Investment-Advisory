@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Expenses | AI Wealth</title>
+  <meta name="description"
+    content="Track your daily expenses and get AI-powered spending categorization and habit detection.">
+  <link rel="stylesheet" href="css/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="brand-icon">📈</span>
+      <span class="brand-text">AI Wealth</span>
+    </div>
+    <div class="nav-links">
+      <a href="dashboard.html" class="nav-link">Dashboard</a>
+      <a href="portfolio.html" class="nav-link">Portfolio</a>
+      <a href="goals.html" class="nav-link">Goals</a>
+      <a href="transactions.html" class="nav-link">Transactions</a>
+      <a href="rebalance.html" class="nav-link">Rebalance</a>
+      <a href="simulation.html" class="nav-link">Simulation</a>
+      <a href="expenses.html" class="nav-link active">Expenses</a>
+      <a href="recommendations.html" class="nav-link">AI Advice</a>
+      <a href="review.html" class="nav-link">Review</a>
+      <a href="settings.html" class="nav-link">Settings</a>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    <!-- Header -->
+    <header class="page-header">
+      <div class="header-content">
+        <h1>💳 Expense Tracker</h1>
+        <p class="subtitle">Log your spending and get AI categorization.</p>
+      </div>
+      <div class="header-actions" style="display: flex; gap: 10px;">
+        <input type="file" id="pdfUploadInput" accept="application/pdf" style="display: none;">
+        <button class="btn btn-secondary" id="uploadPdfBtn">📄 Upload PDF</button>
+        <button class="btn btn-secondary" id="syncGmailBtn">📧 Sync Gmail</button>
+        <button class="btn btn-primary" id="openAddModal">➕ Add Expense</button>
+      </div>
+    </header>
+
+    <!-- Stats Cards -->
+    <section class="stats-grid">
+      <div class="stat-card gradient-blue">
+        <div class="stat-icon">💰</div>
+        <div class="stat-content">
+          <span class="stat-label">Total Spent</span>
+          <span class="stat-value" id="totalAmount">₹0.00</span>
+        </div>
+      </div>
+      <div class="stat-card gradient-purple">
+        <div class="stat-icon">📌</div>
+        <div class="stat-content">
+          <span class="stat-label">Fixed Costs</span>
+          <span class="stat-value" id="fixedStat">0%</span>
+        </div>
+      </div>
+      <div class="stat-card gradient-orange">
+        <div class="stat-icon">🎯</div>
+        <div class="stat-content">
+          <span class="stat-label">Discretionary</span>
+          <span class="stat-value" id="discretionaryStat">0%</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Transactions Table + Insights -->
+    <section class="data-section">
+      <div class="data-card" style="grid-column: span 2;">
+        <div class="card-header">
+          <h3>Recent Transactions</h3>
+        </div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Category</th>
+                <th>Nature</th>
+                <th>Amount</th>
+                <th>Note</th>
+              </tr>
+            </thead>
+            <tbody id="expenseList"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- AI Insights + Habit Detection -->
+    <section class="charts-section">
+      <div class="data-card">
+        <div class="card-header">
+          <h3>✨ AI Insights</h3>
+        </div>
+        <div id="ai-insights-container" style="display: flex; flex-direction: column; gap: 15px;">
+          <p style="font-size: 0.9rem; color: var(--text-muted);">Log more expenses to generate AI insights.
+          </p>
+        </div>
+      </div>
+      <div class="data-card">
+        <div class="card-header">
+          <h3>🔍 Habit Detection</h3>
+        </div>
+        <p id="habitText" style="font-size: 0.9rem; color: var(--text-muted);">No patterns detected yet.</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Add Expense Modal (Unified with Goal Modal) -->
+  <div class="modal" id="addModal">
+    <div class="modal-overlay" id="modalOverlay"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Add Transaction</h2>
+        <button class="modal-close" id="closeModalIcon">&times;</button>
+      </div>
+
+      <form id="expenseForm">
+        <div class="form-group">
+          <label for="amount">Amount (₹)</label>
+          <input type="number" id="amount" placeholder="0.00" required>
+        </div>
+
+        <div class="form-group">
+          <label for="category">Category</label>
+          <select id="category" required>
+            <option value="">Select Category</option>
+            <optgroup label="Fixed">
+              <option value="Rent">Rent</option>
+              <option value="Utilities">Utilities</option>
+            </optgroup>
+            <optgroup label="Variable">
+              <option value="Food">Food</option>
+              <option value="Transport">Transport</option>
+            </optgroup>
+            <optgroup label="Discretionary">
+              <option value="Entertainment">Entertainment</option>
+              <option value="Shopping">Shopping</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="date">Date</label>
+          <input type="date" id="date" required>
+        </div>
+
+        <div class="form-group">
+          <label for="note">Note</label>
+          <input type="text" id="note" placeholder="Description">
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancelModal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Transaction</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>⚠️ <strong>Disclaimer:</strong> This is an educational system. It does not provide financial advice.</p>
+  </footer>
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="expenses.js"></script>
+  <script>
+    if (window.lucide) lucide.createIcons();
+    // Cancel button also closes the modal
+    document.getElementById('cancelModal').onclick = () => {
+      document.getElementById('addModal').classList.remove('active');
+    };
+  </script>
+</body>
+
+</html>

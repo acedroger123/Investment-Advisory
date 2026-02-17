@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Goals | AI Wealth</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="brand-icon">📈</span>
+      <span class="brand-text">AI Wealth</span>
+    </div>
+    <div class="nav-links">
+      <a href="dashboard.html" class="nav-link">Dashboard</a>
+      <a href="portfolio.html" class="nav-link">Portfolio</a>
+      <a href="goals.html" class="nav-link active">Goals</a>
+      <a href="transactions.html" class="nav-link">Transactions</a>
+      <a href="rebalance.html" class="nav-link">Rebalance</a>
+      <a href="simulation.html" class="nav-link">Simulation</a>
+      <a href="expenses.html" class="nav-link">Expenses</a>
+      <a href="recommendations.html" class="nav-link">AI Advice</a>
+      <a href="review.html" class="nav-link">Review</a>
+      <a href="settings.html" class="nav-link">Settings</a>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    <header class="page-header">
+      <div class="header-content">
+        <h1>Financial Goals</h1>
+        <p class="subtitle">Manage your investment goals</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-primary" onclick="showModal('goalModal')">
+          <span>+</span> New Goal
+        </button>
+      </div>
+    </header>
+
+    <!-- Goals Grid -->
+    <section class="goals-grid" id="goalsGrid">
+      <div class="loading-state">
+        <p>Loading goals...</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Goal Modal -->
+  <div class="modal" id="goalModal">
+    <div class="modal-overlay" onclick="hideModal('goalModal')"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalTitle">Create New Goal</h2>
+        <button class="modal-close" onclick="hideModal('goalModal')">&times;</button>
+      </div>
+      <form id="goalForm" onsubmit="saveGoal(event)">
+        <input type="hidden" id="goalId" value="">
+        <div class="form-group">
+          <label for="goalName">Goal Name</label>
+          <input type="text" id="goalName" required placeholder="e.g., Dream Car Purchase">
+        </div>
+        <div class="form-group">
+          <label for="goalDescription">Description (Optional)</label>
+          <textarea id="goalDescription" rows="2" placeholder="Describe your goal..."></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="targetAmountInput">Target Amount (₹)</label>
+            <input type="number" id="targetAmountInput" required min="1000" placeholder="500000">
+          </div>
+          <div class="form-group">
+            <label for="profitBuffer">Profit Buffer (%)</label>
+            <input type="number" id="profitBuffer" value="10" min="0" max="50">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="goalDeadline">Deadline</label>
+            <input type="date" id="goalDeadline" required>
+          </div>
+          <div class="form-group">
+            <label for="riskPreference">Risk Preference</label>
+            <select id="riskPreference">
+              <option value="low">Low - Conservative</option>
+              <option value="moderate" selected>Moderate - Balanced</option>
+              <option value="high">High - Aggressive</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="hideModal('goalModal')">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="saveBtn">Save Goal</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div class="modal" id="deleteModal">
+    <div class="modal-overlay" onclick="hideModal('deleteModal')"></div>
+    <div class="modal-content" style="max-width: 400px;">
+      <div class="modal-header">
+        <h2>Confirm Delete</h2>
+        <button class="modal-close" onclick="hideModal('deleteModal')">&times;</button>
+      </div>
+      <p style="margin-bottom: 20px;">Are you sure you want to delete this goal? This action cannot be undone.</p>
+      <div class="form-actions">
+        <button class="btn btn-secondary" onclick="hideModal('deleteModal')">Cancel</button>
+        <button class="btn btn-danger" onclick="confirmDelete()">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <p>⚠️ <strong>Disclaimer:</strong> This is an educational system. It does not provide financial advice.</p>
+  </footer>
+
+  <script src="js/api.js"></script>
+  <script src="js/goals.js"></script>
+</body>
+
+</html>

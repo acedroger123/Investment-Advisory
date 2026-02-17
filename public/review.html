@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monthly Review | AI Wealth</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    /* Page Specific Styles */
+    .highlight-item {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 12px;
+      border-radius: var(--radius-md);
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .highlight-positive {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--color-accent-green);
+    }
+
+    .highlight-negative {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--color-accent-orange);
+    }
+
+    .goal-row {
+      margin-bottom: 15px;
+    }
+
+    .goal-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.9rem;
+      font-weight: 500;
+      margin-bottom: 5px;
+    }
+
+    .goal-track {
+      height: 8px;
+      background: var(--bg-tertiary);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+    }
+
+    .goal-fill {
+      height: 100%;
+      border-radius: var(--radius-full);
+      transition: width 1s ease;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="brand-icon">📈</span>
+      <span class="brand-text">AI Wealth</span>
+    </div>
+    <div class="nav-links">
+      <a href="dashboard.html" class="nav-link">Dashboard</a>
+      <a href="portfolio.html" class="nav-link">Portfolio</a>
+      <a href="goals.html" class="nav-link">Goals</a>
+      <a href="transactions.html" class="nav-link">Transactions</a>
+      <a href="rebalance.html" class="nav-link">Rebalance</a>
+      <a href="simulation.html" class="nav-link">Simulation</a>
+      <a href="expenses.html" class="nav-link">Expenses</a>
+      <a href="recommendations.html" class="nav-link">AI Advice</a>
+      <a href="review.html" class="nav-link active">Review</a>
+      <a href="settings.html" class="nav-link">Settings</a>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    <!-- Header -->
+    <header class="page-header">
+      <div class="header-content">
+        <h1>📊 Monthly Review</h1>
+        <p class="subtitle">📅 January 2024</p>
+      </div>
+      <div class="header-actions">
+        <span class="badge badge-success"
+          style="padding: 8px 16px; font-size: 0.9rem; display: flex; align-items: center; gap: 8px;">
+          🏆 Great Month!
+        </span>
+      </div>
+    </header>
+
+    <!-- KPI Stats -->
+    <section class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
+      <div class="stat-card gradient-blue">
+        <div class="stat-icon">💰</div>
+        <div class="stat-content">
+          <span class="stat-label">Income</span>
+          <span class="stat-value" id="incomeVal">₹0</span>
+        </div>
+      </div>
+      <div class="stat-card gradient-orange">
+        <div class="stat-icon">💳</div>
+        <div class="stat-content">
+          <span class="stat-label">Expenses</span>
+          <span class="stat-value" id="expensesVal">₹0</span>
+        </div>
+      </div>
+      <div class="stat-card gradient-green">
+        <div class="stat-icon">🐷</div>
+        <div class="stat-content">
+          <span class="stat-label">Saved</span>
+          <span class="stat-value" id="savedVal">₹0</span>
+        </div>
+      </div>
+      <div class="stat-card gradient-purple">
+        <div class="stat-icon">📈</div>
+        <div class="stat-content">
+          <span class="stat-label">Savings Rate</span>
+          <span class="stat-value" id="rateVal">0%</span>
+          <span class="stat-change positive" id="rateChange">+3% vs last month</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Charts -->
+    <section class="charts-section">
+      <div class="chart-container">
+        <div class="chart-header">
+          <h3>Expense Breakdown</h3>
+        </div>
+        <div class="chart-wrapper pie-wrapper">
+          <canvas id="categoryPie"></canvas>
+        </div>
+      </div>
+      <div class="chart-container">
+        <div class="chart-header">
+          <h3>Weekly Spending Pattern</h3>
+        </div>
+        <div class="chart-wrapper">
+          <canvas id="weeklyBar"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Highlights + Goals -->
+    <section class="charts-section">
+      <div class="data-card">
+        <div class="card-header">
+          <h3>Month Highlights</h3>
+        </div>
+        <div id="highlightsContainer" style="margin-top: 15px;"></div>
+      </div>
+      <div class="data-card">
+        <div class="card-header">
+          <h3>🎯 Goals Progress This Month</h3>
+        </div>
+        <div id="goalsProgressContainer"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>⚠️ <strong>Disclaimer:</strong> This is an educational system. It does not provide financial advice.</p>
+  </footer>
+
+  <script src="js/api.js"></script>
+  <script src="review.js"></script>
+</body>
+
+</html>

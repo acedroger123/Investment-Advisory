@@ -1,0 +1,246 @@
+document.addEventListener("DOMContentLoaded", () => {
+  // --- DOM ELEMENTS ---
+  const modal = document.getElementById("addModal");
+  const openBtn = document.getElementById("openAddModal");
+  const closeBtn = document.getElementById("closeModalIcon"); 
+  const form = document.getElementById("stockForm");
+  const list = document.getElementById("stockList");
+
+  // --- SEARCH ELEMENTS ---
+  const searchInput = document.getElementById('stockSearchInput');
+  const dropdown = document.getElementById('searchDropdown');
+  const hiddenSymbol = document.getElementById('symbol');
+
+  // Tracking variable for the detail view
+  let currentDetailSymbol = null;
+
+  // --- 1. DATA FETCHING (PERSISTENCE) ---
+  async function loadPortfolioData() {
+    try {
+      const response = await fetch("/api/holdings", { credentials: "include" });
+      const stocks = await response.json();
+
+      const analysisRes = await fetch("/api/get-financial-profile", { credentials: "include" });
+      const analysisData = await analysisRes.json();
+
+      renderPortfolio(stocks);
+      updatePortfolioHealth(analysisData);
+      fetchAIRecommendations();
+    } catch (err) {
+      console.error("Failed to load portfolio data:", err);
+    }
+  }
+
+  // --- 2. RENDER PORTFOLIO TABLE ---
+  function renderPortfolio(stocks) {
+    list.innerHTML = "";
+    let totalValue = 0;
+    let totalCost = 0;
+
+    stocks.forEach(s => {
+      const qty = parseInt(s.quantity);
+      const buyPrice = parseFloat(s.purchase_price);
+      const currentPrice = buyPrice * (1 + (Math.random() * 0.1 - 0.02)); 
+      
+      const currentVal = qty * currentPrice;
+      const costBasis = qty * buyPrice;
+      const gainLoss = currentVal - costBasis;
+      const gainPercent = costBasis > 0 ? ((gainLoss / costBasis) * 100).toFixed(2) : "0.00";
+      
+      totalValue += currentVal;
+      totalCost += costBasis;
+
+      let riskClass = "risk-low";
+      let riskLabel = "Low";
+      if (buyPrice > 50000) { riskClass = "risk-high"; riskLabel = "High"; }
+      else if (buyPrice > 15000) { riskClass = "risk-med"; riskLabel = "Medium"; }
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td style="font-weight: 600; color: #3b82f6; cursor: pointer;" onclick="showStockDetails('${s.symbol}')">
+          ${s.symbol}
+        </td>
+        <td>${qty}</td>
+        <td>₹${buyPrice.toLocaleString('en-IN')}</td>
+        <td>₹${currentPrice.toLocaleString('en-IN', {maximumFractionDigits: 0})}</td>
+        <td style="font-weight: 600;">₹${currentVal.toLocaleString('en-IN', {maximumFractionDigits: 0})}</td>
+        <td style="color: ${gainLoss >= 0 ? 'hsl(var(--success))' : 'hsl(var(--danger))'}">
+          ${gainLoss >= 0 ? '+' : ''}₹${Math.abs(gainLoss).toLocaleString('en-IN', {maximumFractionDigits: 0})} 
+          <span style="font-size: 0.8em; opacity: 0.8;">(${gainPercent}%)</span>
+        </td>
+        <td><span class="risk-badge ${riskClass}">${riskLabel}</span></td>
+      `;
+      list.appendChild(tr);
+    });
+
+    const totalGain = totalValue - totalCost;
+    const totalReturn = totalCost > 0 ? ((totalGain / totalCost) * 100).toFixed(2) : "0.00";
+
+    document.getElementById("totalValue").innerText = `₹${totalValue.toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
+    const gainEl = document.getElementById("totalGain");
+    gainEl.innerText = `${totalGain >= 0 ? '+' : '-'}₹${Math.abs(totalGain).toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
+    gainEl.style.color = totalGain >= 0 ? "hsl(var(--success))" : "hsl(var(--danger))";
+
+    const returnEl = document.getElementById("totalReturn");
+    returnEl.innerText = `${totalReturn}%`;
+    returnEl.style.color = totalReturn >= 0 ? "hsl(var(--success))" : "hsl(var(--danger))";
+  }
+
+  // --- 3. INTEGRATING ML RESULTS ---
+  function updatePortfolioHealth(data) {
+    const volEl = document.getElementById("volatility");
+    const healthText = document.querySelector(".card p strong"); 
+    if (data.financial_profile) {
+      const level = data.financial_profile.volatility_level || "Low";
+      volEl.textContent = level;
+      volEl.style.color = level === "High" ? "hsl(var(--danger))" : "hsl(var(--warning))";
+      if(healthText) healthText.innerText = data.financial_profile.profile_label || "Stable";
+    }
+  }
+
+  // --- 4. FETCH AI SUGGESTED PICKS ---
+  async function fetchAIRecommendations() {
+    const container = document.getElementById("recommendedStocks");
+    if (!container) return;
+    try {
+      const res = await fetch("/api/get-recommendations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ current_amount: 10000, goal_amount: 50000, years: 2, risk_tolerance: "medium" })
+      });
+      const data = await res.json();
+      container.innerHTML = data.recommend.slice(0, 5).map(rec => `
+          <div class="win-item" style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid hsl(var(--border));">
+            <div>
+              <div style="font-weight: 600;">${rec.ticker}</div>
+              <div style="font-size: 0.75rem; color: hsl(var(--muted-foreground));">Risk: ${rec.risks}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="color: hsl(var(--success)); font-weight: 600;">↗ ${(rec.annual_return * 100).toFixed(1)}%</div>
+              <div style="font-size: 0.7rem; opacity:0.7;">Exp. Return</div>
+            </div>
+          </div>
+        `).join('');
+    } catch (err) { console.warn("AI Recommendations Offline"); }
+  }
+
+  // --- 5. STOCK SEARCH LOGIC (With Strict Validation Check) ---
+  searchInput.addEventListener('input', async (e) => {
+    const val = e.target.value;
+    
+    // IMPORTANT: Clear validation if user types again
+    hiddenSymbol.value = ""; 
+    searchInput.style.borderColor = ""; 
+
+    if (val.length < 2) { dropdown.style.display = "none"; return; }
+    try {
+      const res = await fetch(`/api/stock-search?query=${val}`);
+      const data = await res.json();
+      dropdown.innerHTML = data.map(stock => `
+          <div class="dropdown-item" onclick="selectStock('${stock.symbol}', '${stock.name}')" 
+               style="padding:10px; cursor:pointer; border-bottom:1px solid #eee; color:#1e293b;">
+              <strong>${stock.symbol}</strong> - ${stock.name}
+          </div>
+      `).join('');
+      dropdown.style.display = "block";
+    } catch (e) { console.error("Search failed"); }
+  });
+
+  window.selectStock = (symbol, name) => {
+    searchInput.value = `${name} (${symbol})`;
+    hiddenSymbol.value = symbol; // This makes the form valid
+    dropdown.style.display = "none";
+    searchInput.style.borderColor = "#22c55e"; // Green border
+  };
+
+  // --- 6. ADD STOCK (WITH VALIDATION) ---
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+
+    // STRICT VALIDATION: Block custom names
+    if (!hiddenSymbol.value) {
+      alert("Please select a valid stock from the search suggestions.");
+      searchInput.style.borderColor = "red";
+      return;
+    }
+
+    const payload = {
+      symbol: hiddenSymbol.value,
+      quantity: parseInt(document.getElementById("quantity").value),
+      price: parseFloat(document.getElementById("price").value)
+    };
+    try {
+      const response = await fetch("/api/holdings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (response.ok) {
+        modal.style.display = "none";
+        form.reset();
+        hiddenSymbol.value = "";
+        searchInput.style.borderColor = "";
+        loadPortfolioData(); 
+      }
+    } catch (err) { alert("Failed to save stock holding."); }
+  };
+
+  // --- 7. STOCK DETAILS VIEW ---
+  window.showStockDetails = (symbol) => {
+    currentDetailSymbol = symbol;
+    const detailModal = document.getElementById("detailModal");
+    const barsContainer = document.getElementById("chartBars");
+    
+    document.getElementById("detailSymbol").innerText = symbol;
+    document.getElementById("detailName").innerText = "Simulated Market Performance";
+    
+    barsContainer.innerHTML = "";
+    for(let i=0; i<12; i++) {
+        const height = Math.floor(Math.random() * 80) + 15;
+        const bar = document.createElement("div");
+        bar.style.height = `0%`; 
+        bar.style.width = "100%";
+        bar.style.background = height > 50 ? "#3b82f6" : "#94a3b8";
+        bar.style.borderRadius = "4px";
+        bar.style.transition = "height 0.8s ease-out";
+        barsContainer.appendChild(bar);
+        setTimeout(() => bar.style.height = `${height}%`, 50);
+    }
+
+    document.getElementById("detailHigh").innerText = "₹" + (Math.random() * 5000 + 1000).toLocaleString('en-IN', {maximumFractionDigits:0});
+    document.getElementById("detailLow").innerText = "₹" + (Math.random() * 800 + 200).toLocaleString('en-IN', {maximumFractionDigits:0});
+
+    detailModal.style.display = "flex";
+  };
+
+  // --- 8. DELETE LOGIC ---
+  document.getElementById("deleteStockBtn").onclick = async () => {
+    if (!currentDetailSymbol || !confirm(`Remove ${currentDetailSymbol}?`)) return;
+    try {
+        const response = await fetch(`/api/holdings/${currentDetailSymbol}`, {
+            method: "DELETE",
+            credentials: "include"
+        });
+        if (response.ok) {
+            document.getElementById("detailModal").style.display = "none";
+            loadPortfolioData();
+        }
+    } catch (err) { console.error("Error:", err); }
+  };
+
+  // --- 9. UI CONTROLS ---
+  document.getElementById("closeDetailModal").onclick = () => document.getElementById("detailModal").style.display = "none";
+  if(openBtn) openBtn.onclick = () => modal.style.display = "flex";
+  if(closeBtn) closeBtn.onclick = () => modal.style.display = "none";
+  
+  window.onclick = (e) => { 
+      if (e.target === modal || e.target === document.getElementById("detailModal")) {
+          modal.style.display = "none";
+          document.getElementById("detailModal").style.display = "none";
+          dropdown.style.display = "none";
+      }
+  };
+
+  // INITIAL LOAD
+  loadPortfolioData();
+});

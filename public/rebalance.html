@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rebalancing | AI Wealth</title>
+    <meta name="description"
+        content="Portfolio rebalancing analysis with allocation drift, risk assessment, and actionable recommendations for goal-based investing.">
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <span class="brand-icon">📈</span>
+            <span class="brand-text">AI Wealth</span>
+        </div>
+        <div class="nav-links">
+            <a href="dashboard.html" class="nav-link">Dashboard</a>
+            <a href="portfolio.html" class="nav-link">Portfolio</a>
+            <a href="goals.html" class="nav-link">Goals</a>
+            <a href="transactions.html" class="nav-link">Transactions</a>
+            <a href="rebalance.html" class="nav-link active">Rebalance</a>
+            <a href="simulation.html" class="nav-link">Simulation</a>
+            <a href="expenses.html" class="nav-link">Expenses</a>
+            <a href="recommendations.html" class="nav-link">AI Advice</a>
+            <a href="review.html" class="nav-link">Review</a>
+            <a href="settings.html" class="nav-link">Settings</a>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <header class="page-header">
+            <div class="header-content">
+                <h1>⚖️ Portfolio Rebalancing</h1>
+                <p class="subtitle">Analyze allocation drift, assess risk, and get smart recommendations to optimize
+                    your portfolio</p>
+            </div>
+        </header>
+
+        <!-- Goal Selector -->
+        <div class="goal-selector-container">
+            <label for="goalSelect">Analyze for Goal:</label>
+            <select id="goalSelect" class="goal-select">
+                <option value="">Select a goal...</option>
+            </select>
+            <button class="btn btn-primary" id="analyzeBtn" onclick="analyzePortfolio()">🔍 Analyze Portfolio</button>
+        </div>
+
+        <!-- SECTION 1: Portfolio Summary -->
+        <section id="portfolioSummary" class="stats-grid" style="display: none;">
+            <div class="stat-card gradient-green">
+                <div class="stat-icon">💰</div>
+                <div class="stat-content">
+                    <span class="stat-label">Portfolio Value</span>
+                    <span class="stat-value" id="totalValue">₹0</span>
+                </div>
+            </div>
+            <div class="stat-card gradient-blue">
+                <div class="stat-icon">💵</div>
+                <div class="stat-content">
+                    <span class="stat-label">Total Invested</span>
+                    <span class="stat-value" id="totalInvested">₹0</span>
+                </div>
+            </div>
+            <div class="stat-card gradient-purple">
+                <div class="stat-icon">📈</div>
+                <div class="stat-content">
+                    <span class="stat-label">Unrealized P&L</span>
+                    <span class="stat-value" id="unrealizedPnl">₹0</span>
+                    <span class="stat-change" id="pnlPercent">0%</span>
+                </div>
+            </div>
+            <div class="stat-card gradient-orange">
+                <div class="stat-icon">🎯</div>
+                <div class="stat-content">
+                    <span class="stat-label">Goal Progress</span>
+                    <span class="stat-value" id="goalProgress">0%</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Rebalancing Status Indicator -->
+        <section id="rebalanceStatus" class="rb-status-section" style="display: none;">
+            <div class="rb-status-card" id="statusCard">
+                <div class="rb-status-icon" id="statusIcon">✅</div>
+                <div class="rb-status-content">
+                    <h3 id="statusTitle">Portfolio is Balanced</h3>
+                    <p id="statusReason">No rebalancing action needed at this time.</p>
+                    <div class="rb-status-meta">
+                        <span class="rb-meta-item">📅 Last evaluated: <strong id="lastEvalDate">--</strong></span>
+                        <span class="rb-meta-item">🔄 Drift threshold: <strong>5%</strong></span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Allocation Overview + Risk -->
+        <section id="allocationRiskSection" style="display: none;">
+            <div class="rb-two-col">
+                <div class="data-card">
+                    <div class="card-header">
+                        <h3>📊 Asset Allocation Overview</h3>
+                    </div>
+                    <div class="rb-alloc-charts">
+                        <div class="rb-alloc-chart-item">
+                            <h4>Current Allocation</h4>
+                            <div class="pie-wrapper" style="height: 220px;">
+                                <canvas id="currentAllocChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="rb-alloc-chart-item">
+                            <h4>Target Allocation</h4>
+                            <div class="pie-wrapper" style="height: 220px;">
+                                <canvas id="targetAllocChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="data-card">
+                    <div class="card-header">
+                        <h3>🛡️ Risk Level Indicator</h3>
+                    </div>
+                    <div class="rb-risk-content">
+                        <div class="rb-risk-gauge-container">
+                            <canvas id="riskGauge"></canvas>
+                        </div>
+                        <div class="rb-risk-details">
+                            <div class="rb-risk-metric">
+                                <span class="label">Volatility</span>
+                                <span class="value" id="riskVolatility">--</span>
+                            </div>
+                            <div class="rb-risk-metric">
+                                <span class="label">Sharpe Ratio</span>
+                                <span class="value" id="riskSharpe">--</span>
+                            </div>
+                            <div class="rb-risk-metric">
+                                <span class="label">Diversification</span>
+                                <span class="value" id="riskDiversification">--</span>
+                            </div>
+                            <div class="rb-risk-metric">
+                                <span class="label">Concentration</span>
+                                <span class="value" id="riskConcentration">--</span>
+                            </div>
+                        </div>
+                        <div class="rb-risk-explanation" id="riskExplanation">
+                            Analyze your portfolio to see risk assessment.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Allocation Drift Details -->
+        <section id="driftSection" style="display: none;">
+            <div class="data-card">
+                <div class="card-header">
+                    <h3>↔️ Allocation Drift Details</h3>
+                    <span class="badge badge-info">Per-Stock Analysis</span>
+                </div>
+                <div class="table-wrapper">
+                    <table class="data-table" id="driftTable">
+                        <thead>
+                            <tr>
+                                <th>Stock</th>
+                                <th>Current %</th>
+                                <th>Target %</th>
+                                <th>Deviation</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="driftBody">
+                            <tr class="empty-row">
+                                <td colspan="5">Analyze portfolio to see drift details</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Recommendations + Adjustments -->
+        <section id="recsSection" style="display: none;">
+            <div class="rb-two-col">
+                <div class="data-card">
+                    <div class="card-header">
+                        <h3>💡 Rebalancing Recommendations</h3>
+                    </div>
+                    <div class="recommendations-list" id="recommendationsList">
+                        <div class="empty-state-small">
+                            <p>Analyze your portfolio to get recommendations</p>
+                        </div>
+                    </div>
+                    <div class="rb-disclaimer">
+                        ⚠️ These are suggestions only — no real trades are executed.
+                    </div>
+                </div>
+
+                <div class="data-card">
+                    <div class="card-header">
+                        <h3>🚨 Portfolio Issues</h3>
+                        <span class="badge badge-warning" id="issuesBadge">0 Issues</span>
+                    </div>
+                    <div class="issues-list" id="issuesList">
+                        <div class="empty-state-small">
+                            <p>No issues detected</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stock-Level Adjustment Suggestions -->
+        <section id="adjustmentsSection" style="display: none;">
+            <div class="data-card">
+                <div class="card-header">
+                    <h3>⚖️ Stock-Level Adjustment Suggestions</h3>
+                    <span class="badge badge-info" id="strategyBadge">Equal Weight</span>
+                </div>
+                <div class="table-wrapper">
+                    <table class="data-table" id="adjustmentTable">
+                        <thead>
+                            <tr>
+                                <th>Action</th>
+                                <th>Stock</th>
+                                <th>Current Weight</th>
+                                <th>Target Weight</th>
+                                <th>Quantity</th>
+                                <th>Drift</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adjustmentBody">
+                            <tr class="empty-row">
+                                <td colspan="6">Your portfolio is well-balanced. No adjustments needed.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Goal Impact Preview -->
+        <section id="goalImpactSection" style="display: none;">
+            <div class="data-card">
+                <div class="card-header">
+                    <h3>🎯 Goal Impact Preview</h3>
+                </div>
+                <div class="rb-goal-impact-grid">
+                    <div class="rb-goal-gauge-wrapper">
+                        <canvas id="goalProgressGauge"></canvas>
+                    </div>
+                    <div class="rb-goal-details">
+                        <div class="rb-goal-detail-item">
+                            <span class="label">Goal</span>
+                            <span class="value" id="impactGoalName">--</span>
+                        </div>
+                        <div class="rb-goal-detail-item">
+                            <span class="label">Target Amount</span>
+                            <span class="value" id="impactTargetAmount">₹0</span>
+                        </div>
+                        <div class="rb-goal-detail-item">
+                            <span class="label">Current Value</span>
+                            <span class="value" id="impactCurrentValue">₹0</span>
+                        </div>
+                        <div class="rb-goal-detail-item">
+                            <span class="label">Amount Remaining</span>
+                            <span class="value" id="impactRemaining">₹0</span>
+                        </div>
+                        <div class="rb-goal-detail-item">
+                            <span class="label">Days Remaining</span>
+                            <span class="value" id="impactDaysLeft">--</span>
+                        </div>
+                        <div class="rb-goal-detail-item">
+                            <span class="label">On Track?</span>
+                            <span class="value" id="impactOnTrack">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+
+
+
+        <!-- Empty State (shown before analysis) -->
+        <section id="emptyState" class="empty-state">
+            <div class="empty-content">
+                <h3>⚖️ Portfolio Rebalancing</h3>
+                <p>Select a goal to analyze your portfolio and get smart rebalancing recommendations.</p>
+                <p class="text-muted">Our AI will identify concentration risks, allocation drift, and suggest optimal
+                    trades to keep your portfolio on track.</p>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <p>⚠️ <strong>Disclaimer:</strong> Rebalancing suggestions are educational and advisory only. No real trades are
+            executed. Always do your own research before investing.</p>
+    </footer>
+
+    <script src="js/api.js"></script>
+    <script src="js/charts.js"></script>
+    <script src="js/rebalance.js"></script>
+</body>
+
+</html>
