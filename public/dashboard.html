@@ -72,6 +72,7 @@
           <span class="stat-label">Goal Progress</span>
           <span class="stat-value" id="goalProgress">0%</span>
           <span class="stat-subtext" id="targetAmount">Target: ₹0</span>
+          <span class="stat-subtext" id="goalFeasibility">Feasibility: --</span>
         </div>
       </div>
       <div class="stat-card gradient-purple">
@@ -175,6 +176,20 @@
             <span class="rec-text">Create a goal and add stocks to get personalized recommendations.</span>
           </div>
         </div>
+      </div>
+
+      <div class="data-card">
+        <div class="card-header">
+          <h3>Habit + Goal Conflict</h3>
+          <span class="badge badge-warning">Behavior AI</span>
+        </div>
+        <div id="habitConflictDashboardSummary" style="color: var(--text-secondary); line-height: 1.5;">
+          Select a goal to load habit intelligence.
+        </div>
+        <div id="habitConflictDashboardMeta" style="margin-top: 12px; color: var(--text-muted); font-size: 0.85rem;">
+        </div>
+        <ul id="habitConflictDashboardRoadmap"
+          style="margin-top: 12px; padding-left: 18px; color: var(--text-secondary);"></ul>
       </div>
     </section>
 

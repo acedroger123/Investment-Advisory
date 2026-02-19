@@ -991,16 +991,202 @@ app.get("/api/ai-analysis", async (req, res) => {
   }
 })
 
+function mapExpenseCategoryToHabitCategory(category) {
+  const raw = String(category || "").trim().toLowerCase()
+
+  if (["rent", "home rent"].includes(raw)) return "rent"
+  if (["insurance", "lic"].includes(raw)) return "insurance"
+  if (["loan", "emi", "loan payments"].includes(raw)) return "loan payments"
+  if (["food", "food and groceries", "groceries"].includes(raw)) return "food and groceries"
+  if (["utilities", "electricity", "water", "gas", "internet"].includes(raw)) return "utilities"
+  if (["travel", "transport", "fuel", "petrol", "uber", "ola"].includes(raw)) return "transport"
+  if (["medical", "healthcare", "medicine"].includes(raw)) return "medical"
+  if (["dining out", "dinning out", "restaurant"].includes(raw)) return "dinning out"
+  if (["shopping", "retail"].includes(raw)) return "shopping"
+  if (["entertainment", "movies"].includes(raw)) return "entertainment"
+  if (["subscriptions", "subscription"].includes(raw)) return "subscriptions"
+
+  return "shopping"
+}
+
+function priorityToScore(priority) {
+  if (typeof priority === "number" && Number.isFinite(priority)) {
+    return Math.max(1, Math.min(5, Math.round(priority)))
+  }
+
+  const text = String(priority || "").trim().toLowerCase()
+  if (text === "high") return 5
+  if (text === "medium" || text === "moderate") return 3
+  if (text === "low") return 2
+  return 3
+}
+
+/* Habit + Goal Conflict Intelligence */
+app.get("/api/habit-goalconflict", async (req, res) => {
+  if (!req.session.user_id) return res.status(401).json({ message: "Unauthorized" })
+
+  try {
+    const [expensesResult, goalsResult, userResult] = await Promise.all([
+      pool.query(
+        `SELECT amount, category, date
+         FROM expenses
+         WHERE user_id = $1
+         ORDER BY date DESC`,
+        [req.session.user_id]
+      ),
+      pool.query(
+        `SELECT name, target_amount, saved_amount, duration_months, priority
+         FROM user_goals
+         WHERE user_id = $1 AND COALESCE(status, 'active') <> 'deleted'
+         ORDER BY id DESC`,
+        [req.session.user_id]
+      ),
+      pool.query(
+        `SELECT annual_income_range, savings_percent
+         FROM newusers
+         WHERE id = $1`,
+        [req.session.user_id]
+      )
+    ])
+
+    const expenses = expensesResult.rows || []
+    const goals = goalsResult.rows || []
+    const user = userResult.rows[0] || {}
+
+    if (expenses.length < 2) {
+      return res.status(400).json({
+        message: "Not enough expense history for habit analysis",
+        minimum_required: 2
+      })
+    }
+
+    const parsedExpenses = expenses
+      .map((e) => ({
+        amount: Number(e.amount),
+        category: e.category,
+        date: e.date ? new Date(e.date) : null
+      }))
+      .filter((e) => Number.isFinite(e.amount) && e.amount > 0 && e.date && !Number.isNaN(e.date.getTime()))
+
+    if (parsedExpenses.length < 2) {
+      return res.status(400).json({
+        message: "Not enough valid expense records for habit analysis",
+        minimum_required: 2
+      })
+    }
+
+    const latest = parsedExpenses[0]
+    const totalSpend = parsedExpenses.reduce((sum, e) => sum + e.amount, 0)
+    const averageSpend = totalSpend / parsedExpenses.length
+
+    const minTs = Math.min(...parsedExpenses.map((e) => e.date.getTime()))
+    const maxTs = Math.max(...parsedExpenses.map((e) => e.date.getTime()))
+    const spanWeeks = Math.max(1, Math.ceil((maxTs - minTs) / (1000 * 60 * 60 * 24 * 7)))
+    const avgWeeklyFrequency = Math.max(1, Math.round(parsedExpenses.length / spanWeeks))
+
+    const weeklyBuckets = new Map()
+    for (const e of parsedExpenses) {
+      const year = e.date.getUTCFullYear()
+      const start = new Date(Date.UTC(year, 0, 1))
+      const dayOfYear = Math.floor((e.date - start) / (1000 * 60 * 60 * 24))
+      const week = Math.floor(dayOfYear / 7)
+      const key = `${year}-${week}`
+      weeklyBuckets.set(key, (weeklyBuckets.get(key) || 0) + 1)
+    }
+    const weeklyCounts = Array.from(weeklyBuckets.values())
+    const meanWeekly = weeklyCounts.reduce((s, v) => s + v, 0) / Math.max(1, weeklyCounts.length)
+    const variance = weeklyCounts.reduce((s, v) => s + Math.pow(v - meanWeekly, 2), 0) / Math.max(1, weeklyCounts.length)
+    const stdDev = Math.sqrt(variance)
+    const consistency = Math.max(0, Math.min(1, meanWeekly <= 0 ? 0.5 : 1 - stdDev / (meanWeekly + 1)))
+
+    const weekendTxCount = parsedExpenses.filter((e) => {
+      const d = e.date.getDay()
+      return d === 0 || d === 6
+    }).length
+    const weekendRatio = weekendTxCount / parsedExpenses.length
+
+    const categorySpend = new Map()
+    for (const e of parsedExpenses) {
+      const key = mapExpenseCategoryToHabitCategory(e.category)
+      categorySpend.set(key, (categorySpend.get(key) || 0) + e.amount)
+    }
+    const dominantCategory = Array.from(categorySpend.entries())
+      .sort((a, b) => b[1] - a[1])[0]?.[0] || "shopping"
+
+    const annualIncome = Number(user.annual_income_range || 0)
+    const savingsPercent = Number(user.savings_percent || 0)
+    const monthlySavingsCapacity = annualIncome > 0 && savingsPercent > 0
+      ? (annualIncome * (savingsPercent / 100)) / 12
+      : 0
+
+    const activeGoals = goals.map((g) => ({
+      goal_name: g.name || "Goal",
+      goal_type: "General",
+      target_amount: Number(g.target_amount || 0),
+      current_amount: Number(g.saved_amount || 0),
+      timeline_months: Math.max(1, Number(g.duration_months || 1)),
+      priority: priorityToScore(g.priority),
+      protected_categories: []
+    })).filter((g) => g.target_amount > 0)
+
+    const payload = {
+      avg_weekly_frequency: avgWeeklyFrequency,
+      consistency: Number(consistency.toFixed(4)),
+      average_spend: Number(averageSpend.toFixed(2)),
+      weeks_active: Math.max(1, weeklyBuckets.size),
+      weekend_ratio: Number(weekendRatio.toFixed(4)),
+      night_ratio: 0.2,
+      category: dominantCategory,
+      transaction_amount: Number(latest.amount.toFixed(2)),
+      transaction_hour: 20,
+      monthly_savings_capacity: Number(monthlySavingsCapacity.toFixed(2)),
+      active_goals: activeGoals
+    }
+
+    const response = await axios.post("http://localhost:8006/habits/analyze", payload)
+    return res.json({
+      source: "habit_goalconflict_airanking",
+      input_snapshot: payload,
+      ...response.data
+    })
+  } catch (err) {
+    const detail = err.response?.data || err.message
+    return res.status(500).json({
+      message: "Habit Goal-Conflict Engine Offline",
+      detail
+    })
+  }
+})
+
 /* Goal Feasibility Assessment */
 app.post("/api/assess-goal-feasibility", async (req, res) => {
   if (!req.session.user_id) return res.status(401).send()
 
   try {
+    const targetAmount = Number(req.body.target_amount ?? req.body.target_value)
+    let durationMonths = Number(req.body.duration_months)
+    const monthlyInvestment = Number(req.body.monthly_investment ?? req.body.monthly_capacity)
+
+    if ((!durationMonths || durationMonths <= 0) && req.body.deadline) {
+      const now = new Date()
+      const deadline = new Date(req.body.deadline)
+      const diffMs = deadline.getTime() - now.getTime()
+      if (!Number.isNaN(diffMs) && diffMs > 0) {
+        durationMonths = Math.ceil(diffMs / (1000 * 60 * 60 * 24 * 30))
+      }
+    }
+
+    durationMonths = Math.max(1, Number.isFinite(durationMonths) ? durationMonths : 1)
+
+    if (!Number.isFinite(targetAmount) || targetAmount <= 0) {
+      return res.status(400).json({ error: "Invalid target amount" })
+    }
+
     const userResult = await pool.query(
       "SELECT annual_income_range, savings_percent, risk_label FROM newusers WHERE id = $1",
       [req.session.user_id]
     )
-    const user = userResult.rows[0]
+    const user = userResult.rows[0] || {}
 
     // Map database values to AI-compatible numbers
     const savingsMap = {
@@ -1019,9 +1205,9 @@ app.post("/api/assess-goal-feasibility", async (req, res) => {
       income: 35000,
       savings_ratio: savingsMap[user.savings_percent] || 0.1,
       investment_style: styleMap[user.risk_label] || 0.6,
-      monthly_capacity: req.body.monthly_investment || 5000,
-      goal_amount: req.body.target_amount,
-      timeline_months: req.body.duration_months
+      monthly_capacity: Number.isFinite(monthlyInvestment) && monthlyInvestment > 0 ? monthlyInvestment : 5000,
+      goal_amount: targetAmount,
+      timeline_months: durationMonths
     }
 
     const response = await axios.post("http://localhost:8004/goal/assess", aiProfile)

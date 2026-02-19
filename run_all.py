@@ -22,6 +22,7 @@ def start_services():
         {"name": "STABILITY_API", "port": 8000, "cmd": ["uvicorn", "stablility_api:app", "--port", "8000"]},
         {"name": "RECOMMEND_API", "port": 8001, "cmd": ["uvicorn", "recommend_api:app", "--port", "8001"]},
         {"name": "GOAL_FEASIBILITY_API", "port": 8004, "cmd": ["uvicorn", "goal_api:app", "--port", "8004"]},
+        {"name": "HABIT_GOAL_CONFLICT_API", "port": 8006, "cmd": ["uvicorn", "habit_goalconflict_airanking.habit_recomendation_api:app", "--port", "8006"]},
         {"name": "PORTFOLIO_ANALYSIS", "port": 8005, "cmd": ["uvicorn", "portfolio_app:app", "--port", "8005"]}
     ]
 

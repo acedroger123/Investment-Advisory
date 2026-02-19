@@ -39,7 +39,8 @@ async function loadGoals() {
             return;
         }
 
-        grid.innerHTML = goals.map(goal => createGoalCard(goal)).join('');
+        const goalsWithFeasibility = await enrichGoalsWithFeasibility(goals);
+        grid.innerHTML = goalsWithFeasibility.map(goal => createGoalCard(goal)).join('');
 
     } catch (error) {
         console.error('Error loading goals:', error);
@@ -52,6 +53,45 @@ async function loadGoals() {
     }
 }
 
+async function enrichGoalsWithFeasibility(goals) {
+    if (!Array.isArray(goals) || goals.length === 0) return goals;
+
+    const results = await Promise.all(goals.map(async (goal) => {
+        try {
+            const payload = buildFeasibilityPayload(goal);
+            const feasibility = await API.Goals.assessFeasibility(payload);
+            return { ...goal, goal_feasibility: feasibility, goal_feasability: feasibility };
+        } catch (error) {
+            console.warn(`Feasibility unavailable for goal ${goal.id}:`, error.message);
+            return { ...goal, goal_feasibility: null, goal_feasability: null };
+        }
+    }));
+
+    return results;
+}
+
+function buildFeasibilityPayload(goal) {
+    const targetAmount = Number(goal.target_amount ?? goal.target_value ?? 0);
+
+    const daysRemaining = Number(goal.days_remaining);
+    let durationMonths = Number.isFinite(daysRemaining) ? Math.ceil(daysRemaining / 30) : null;
+
+    if (!durationMonths || durationMonths <= 0) {
+        const deadline = goal.deadline ? new Date(goal.deadline) : null;
+        if (deadline && !Number.isNaN(deadline.getTime())) {
+            const diffMs = deadline.getTime() - Date.now();
+            durationMonths = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24 * 30)));
+        } else {
+            durationMonths = 1;
+        }
+    }
+
+    return {
+        target_amount: targetAmount,
+        duration_months: durationMonths
+    };
+}
+
 function createGoalCard(goal) {
     const progressColor = goal.progress >= 80 ? 'var(--color-accent-green)' :
         goal.progress >= 50 ? 'var(--color-accent-orange)' :
@@ -59,6 +99,14 @@ function createGoalCard(goal) {
 
     const riskBadge = goal.risk_preference === 'high' ? 'badge-danger' :
         goal.risk_preference === 'moderate' ? 'badge-warning' : 'badge-success';
+
+    const feasibility = goal.goal_feasibility || goal.goal_feasability;
+    const feasibilityClass = getFeasibilityClass(feasibility?.feasibility);
+    const confidence = Number(feasibility?.confidence_score ?? 0);
+    const feasibilityText = feasibility
+        ? `${feasibility.feasibility} (${confidence.toFixed(1)}%)`
+        : 'Unavailable';
+    const feasibilityHint = feasibility?.explanation || 'Feasibility engine unavailable for this goal.';
 
     return `
         <div class="goal-card" data-id="${goal.id}">
@@ -91,14 +139,27 @@ function createGoalCard(goal) {
                     <span class="stat-value">${goal.days_remaining}</span>
                 </div>
             </div>
+
+            <div class="goal-feasibility ${feasibilityClass}">
+                <div class="goal-feasibility-title">Goal Feasibility</div>
+                <div class="goal-feasibility-value">${feasibilityText}</div>
+                <div class="goal-feasibility-hint">${feasibilityHint}</div>
+            </div>
             
             <div class="goal-actions">
                 <button class="btn btn-secondary btn-sm" onclick="editGoal(${goal.id})">Edit</button>
                 <button class="btn btn-sm" style="background: rgba(239,68,68,0.2); color: #ef4444;" onclick="showDeleteModal(${goal.id})">Delete</button>
-                <a href="index.html?goalId=${goal.id}" class="btn btn-primary btn-sm">View Dashboard</a>
+                <a href="dashboard.html?goalId=${goal.id}" class="btn btn-primary btn-sm">View Dashboard</a>
             </div>
         </div>
     `;
+}
+
+function getFeasibilityClass(level) {
+    if (level === 'High') return 'feasibility-high';
+    if (level === 'Medium') return 'feasibility-medium';
+    if (level === 'Low') return 'feasibility-low';
+    return 'feasibility-unavailable';
 }
 
 async function saveGoal(event) {
@@ -258,6 +319,49 @@ style.textContent = `
     .goal-actions {
         display: flex;
         gap: var(--spacing-sm);
+    }
+
+    .goal-feasibility {
+        margin-bottom: var(--spacing-lg);
+        border-radius: var(--radius-md);
+        padding: var(--spacing-md);
+        border: 1px solid var(--glass-border);
+        background: var(--glass-bg);
+    }
+
+    .goal-feasibility-title {
+        font-size: var(--font-size-xs);
+        color: var(--text-muted);
+        margin-bottom: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .goal-feasibility-value {
+        font-size: var(--font-size-md);
+        font-weight: 700;
+        margin-bottom: 6px;
+    }
+
+    .goal-feasibility-hint {
+        font-size: var(--font-size-xs);
+        color: var(--text-secondary);
+        line-height: 1.45;
+    }
+
+    .feasibility-high {
+        border-color: rgba(16, 185, 129, 0.5);
+        background: rgba(16, 185, 129, 0.08);
+    }
+
+    .feasibility-medium {
+        border-color: rgba(245, 158, 11, 0.5);
+        background: rgba(245, 158, 11, 0.08);
+    }
+
+    .feasibility-low {
+        border-color: rgba(239, 68, 68, 0.5);
+        background: rgba(239, 68, 68, 0.08);
     }
     
     .goal-actions .btn {

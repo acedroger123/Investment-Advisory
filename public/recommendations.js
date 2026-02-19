@@ -1,6 +1,10 @@
 document.addEventListener("DOMContentLoaded", () => {
   const recList = document.getElementById("recList");
   const winList = document.getElementById("quickWinsList");
+  const habitSummaryEl = document.getElementById("habitConflictSummary");
+  const habitMetaEl = document.getElementById("habitConflictMeta");
+  const habitRoadmapEl = document.getElementById("habitRoadmap");
+  let habitRankedRecommendations = [];
 
   // --- 1. STATIC FALLBACK DATA (In case AI is offline or no goals) ---
   const staticRecommendations = [
@@ -42,7 +46,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <p style="color: var(--text-muted);">AI is analyzing your financial goals and spending habits...</p>
       </div>
     `;
-    lucide.createIcons();
+    if (window.lucide) window.lucide.createIcons();
 
     try {
       const response = await fetch("/api/goals", { credentials: "include" });
@@ -51,7 +55,10 @@ document.addEventListener("DOMContentLoaded", () => {
       if (goals && goals.length > 0) {
         // Automatically use the primary/most recent goal for analysis
         const primaryGoal = goals[0];
-        fetchRealRecommendations(primaryGoal);
+        await Promise.all([
+          fetchRealRecommendations(primaryGoal),
+          fetchHabitGoalConflictInsights()
+        ]);
       } else {
         // Guide user to add a goal if none exist
         recList.innerHTML = `
@@ -64,11 +71,13 @@ document.addEventListener("DOMContentLoaded", () => {
             </a>
           </div>
         `;
-        lucide.createIcons();
+        if (window.lucide) window.lucide.createIcons();
+        renderHabitEmptyState("Create at least one goal and add expenses to activate habit-goal conflict analysis.");
       }
     } catch (err) {
       console.error("Error loading goals:", err);
-      fetchRealRecommendations(null); // Fallback to static data
+      await fetchRealRecommendations(null); // Fallback to static data
+      renderHabitEmptyState("Habit intelligence unavailable because goals could not be loaded.");
     }
   }
 
@@ -97,14 +106,77 @@ document.addEventListener("DOMContentLoaded", () => {
           impact: s.monetary_gain || "Growth",
           action: s.action_label || "View Details"
         }));
-        renderRecs(dynamicRecs);
+        const habitRecs = mapHabitRecommendationsForCards(habitRankedRecommendations);
+        renderRecs([...habitRecs, ...dynamicRecs]);
       } else {
-        renderRecs(staticRecommendations);
+        const habitRecs = mapHabitRecommendationsForCards(habitRankedRecommendations);
+        renderRecs(habitRecs.length ? habitRecs : staticRecommendations);
       }
     } catch (err) {
       console.warn("AI Service unreachable, displaying static insights.");
-      renderRecs(staticRecommendations);
+      const habitRecs = mapHabitRecommendationsForCards(habitRankedRecommendations);
+      renderRecs(habitRecs.length ? habitRecs : staticRecommendations);
     }
+  }
+
+  async function fetchHabitGoalConflictInsights() {
+    if (!habitSummaryEl || !habitMetaEl || !habitRoadmapEl) return;
+
+    try {
+      const res = await fetch("/api/habit-goalconflict", { credentials: "include" });
+      if (!res.ok) throw new Error("Habit engine unavailable");
+
+      const data = await res.json();
+      habitRankedRecommendations = Array.isArray(data.ranked_recommendations) ? data.ranked_recommendations : [];
+      renderHabitInsights(data);
+    } catch (err) {
+      console.warn("Habit+Goal conflict integration unavailable:", err.message);
+      habitRankedRecommendations = [];
+      renderHabitEmptyState("Habit-goal conflict engine is offline or missing input data.");
+    }
+  }
+
+  function renderHabitInsights(data) {
+    const summary = data.unified_summary || "No habit conflict detected.";
+    const alignment = data.ai_guidance?.financial_alignment_score || {};
+    const impact = data.ai_guidance?.impact_summary || {};
+    const roadmap = data.ai_guidance?.personalized_roadmap_suggestion || [];
+
+    habitSummaryEl.textContent = summary;
+    habitMetaEl.innerHTML = `
+      <div><strong>Alignment:</strong> ${alignment.label || "--"} (${alignment.score_pct || 0}%)</div>
+      <div><strong>Potential Savings:</strong> ₹${Math.round(impact.potential_savings_monthly || 0)}/month</div>
+      <div><strong>Timeline Reduction:</strong> ${impact.timeline_reduction_months || 0} months</div>
+    `;
+
+    habitRoadmapEl.innerHTML = "";
+    roadmap.slice(0, 3).forEach((step) => {
+      const li = document.createElement("li");
+      li.style.marginBottom = "6px";
+      li.textContent = step;
+      habitRoadmapEl.appendChild(li);
+    });
+  }
+
+  function renderHabitEmptyState(message) {
+    if (!habitSummaryEl || !habitMetaEl || !habitRoadmapEl) return;
+    habitSummaryEl.textContent = message;
+    habitMetaEl.textContent = "";
+    habitRoadmapEl.innerHTML = "";
+  }
+
+  function mapHabitRecommendationsForCards(ranked) {
+    if (!Array.isArray(ranked) || ranked.length === 0) return [];
+
+    return ranked.slice(0, 3).map((item, idx) => ({
+      category: "Habit Intelligence",
+      title: `Behavior Shift #${idx + 1}`,
+      desc: item.recommendation || item.why_ranked || "Behavior adjustment suggested by habit engine.",
+      priority: idx === 0 ? "High" : "Medium",
+      icon: "brain-circuit",
+      impact: `${Math.round((item.score || 0) * 100)}% confidence`,
+      action: "Apply"
+    }));
   }
 
   // --- 4. RENDER LOGIC ---
@@ -149,7 +221,7 @@ document.addEventListener("DOMContentLoaded", () => {
       recList.appendChild(card);
     });
 
-    if (window.lucide) lucide.createIcons();
+    if (window.lucide) window.lucide.createIcons();
   }
 
   function renderWins() {

@@ -67,6 +67,24 @@ const GoalsAPI = {
             method: 'DELETE',
         });
     },
+
+    async assessFeasibility(goalData) {
+        const response = await fetch('/api/assess-goal-feasibility', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(goalData),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || errorData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        return response.json();
+    },
 };
 
 /**
@@ -217,6 +235,24 @@ const SimulationAPI = {
 };
 
 /**
+ * Insights API (Node backend integrations)
+ */
+const InsightsAPI = {
+    async getHabitGoalConflict() {
+        const response = await fetch('/api/habit-goalconflict', {
+            credentials: 'include',
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        return response.json();
+    },
+};
+
+/**
  * Utility Functions
  */
 function formatCurrency(value, currency = 'INR') {
@@ -310,6 +346,7 @@ window.API = {
     Stocks: StocksAPI,
     Recommendations: RecommendationsAPI,
     Simulation: SimulationAPI,
+    Insights: InsightsAPI,
 };
 
 window.formatCurrency = formatCurrency;

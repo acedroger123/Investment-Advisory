@@ -57,14 +57,17 @@ async function loadGoalData() {
     currentGoalId = select.value;
 
     if (!currentGoalId) {
+        updateFeasibilitySummary(null);
+        renderHabitConflictSummary(null, 'Select a goal to load habit intelligence.');
         return;
     }
 
     try {
         // Load goal-specific portfolio data
-        const [portfolio, recommendations] = await Promise.all([
+        const [portfolio, recommendations, goal] = await Promise.all([
             API.Portfolio.get(currentGoalId),
-            API.Recommendations.get(currentGoalId).catch(() => ({ recommendations: [] }))
+            API.Recommendations.get(currentGoalId).catch(() => ({ recommendations: [] })),
+            API.Goals.get(currentGoalId).catch(() => null)
         ]);
 
         // Update stats cards
@@ -80,6 +83,15 @@ async function loadGoalData() {
             Charts.createProgressGauge('progressGauge', portfolio.summary.progress_percentage || 0, 'Goal Progress');
         }
 
+        // Load feasibility status for the selected goal
+        const feasibilityPayload = {
+            target_amount: goal?.target_amount ?? portfolio?.summary?.target_value,
+            deadline: goal?.deadline ?? portfolio?.summary?.deadline
+        };
+        const feasibility = await API.Goals.assessFeasibility(feasibilityPayload).catch(() => null);
+        updateFeasibilitySummary(feasibility);
+        await loadHabitGoalConflictSummary();
+
         // Run all remaining chart/data loads in parallel
         await Promise.all([
             updateCharts(portfolio),
@@ -91,6 +103,7 @@ async function loadGoalData() {
     } catch (error) {
         console.error('Error loading goal data:', error);
         showToast('Failed to load goal data', 'error');
+        renderHabitConflictSummary(null, 'Habit intelligence unavailable right now.');
     }
 }
 
@@ -122,6 +135,68 @@ function updateStatsCards(summary) {
     // Days Remaining
     document.getElementById('daysRemaining').textContent = summary.days_remaining || 0;
     document.getElementById('deadline').textContent = `Deadline: ${formatDate(summary.deadline)}`;
+}
+
+function updateFeasibilitySummary(feasibility) {
+    const el = document.getElementById('goalFeasibility');
+    if (!el) return;
+
+    if (!feasibility || !feasibility.feasibility) {
+        el.textContent = 'Feasibility: Unavailable';
+        return;
+    }
+
+    const confidence = Number(feasibility.confidence_score ?? 0).toFixed(1);
+    el.textContent = `Feasibility: ${feasibility.feasibility} (${confidence}%)`;
+}
+
+async function loadHabitGoalConflictSummary() {
+    try {
+        const data = await API.Insights.getHabitGoalConflict();
+        renderHabitConflictSummary(data);
+    } catch (error) {
+        console.warn('Error loading habit goal-conflict insights:', error);
+        renderHabitConflictSummary(null, 'Habit-goal conflict engine is offline or missing input data.');
+    }
+}
+
+function renderHabitConflictSummary(data, fallbackMessage = null) {
+    const summaryEl = document.getElementById('habitConflictDashboardSummary');
+    const metaEl = document.getElementById('habitConflictDashboardMeta');
+    const roadmapEl = document.getElementById('habitConflictDashboardRoadmap');
+
+    if (!summaryEl || !metaEl || !roadmapEl) return;
+
+    if (!data) {
+        summaryEl.textContent = fallbackMessage || 'No habit-goal conflict data available.';
+        metaEl.textContent = '';
+        roadmapEl.innerHTML = '';
+        return;
+    }
+
+    const summary = data.unified_summary || 'No major habit-goal conflict detected for this cycle.';
+    const alignment = data.ai_guidance?.financial_alignment_score || {};
+    const impact = data.ai_guidance?.impact_summary || {};
+    const conflictScore = Number(data.goal_conflict?.overall_conflict_score ?? 0);
+
+    summaryEl.textContent = summary;
+    metaEl.innerHTML = `
+        <div><strong>Conflict Score:</strong> ${(conflictScore * 100).toFixed(1)}%</div>
+        <div><strong>Alignment:</strong> ${alignment.label || '--'} (${Number(alignment.score_pct || 0).toFixed(1)}%)</div>
+        <div><strong>Potential Savings:</strong> ${formatCurrency(impact.potential_savings_monthly || 0)}/month</div>
+    `;
+
+    roadmapEl.innerHTML = '';
+    const roadmap = Array.isArray(data.ai_guidance?.personalized_roadmap_suggestion)
+        ? data.ai_guidance.personalized_roadmap_suggestion
+        : [];
+
+    roadmap.slice(0, 3).forEach(step => {
+        const li = document.createElement('li');
+        li.style.marginBottom = '6px';
+        li.textContent = step;
+        roadmapEl.appendChild(li);
+    });
 }
 
 
