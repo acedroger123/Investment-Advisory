@@ -64,10 +64,11 @@ async function loadGoalData() {
 
     try {
         // Load goal-specific portfolio data
-        const [portfolio, recommendations, goal] = await Promise.all([
+        const [portfolio, recommendations, goal, habitInsights] = await Promise.all([
             API.Portfolio.get(currentGoalId),
             API.Recommendations.get(currentGoalId).catch(() => ({ recommendations: [] })),
-            API.Goals.get(currentGoalId).catch(() => null)
+            API.Goals.get(currentGoalId).catch(() => null),
+            API.Insights.getHabitGoalConflict().catch(() => null)
         ]);
 
         // Update stats cards
@@ -75,8 +76,8 @@ async function loadGoalData() {
 
 
 
-        // Update recommendations
-        updateRecommendations(recommendations);
+        // Update recommendations (stock engine first, habit engine fallback)
+        updateRecommendations(recommendations, habitInsights);
 
         // Load goal progress gauge
         if (portfolio.summary) {
@@ -281,42 +282,50 @@ async function loadRiskChart(goalId) {
 /**
  * Update recommendations panel
  */
-function updateRecommendations(data) {
+function updateRecommendations(data, habitInsights = null) {
     const container = document.getElementById('recommendationsList');
 
     // Handle missing or invalid data
-    if (!data || !data.recommendations || !Array.isArray(data.recommendations) || data.recommendations.length === 0) {
-        container.innerHTML = `
-            <div class="recommendation-item">
-                <span class="rec-icon">💡</span>
-                <span class="rec-text">Add more stocks to your portfolio for personalized recommendations.</span>
+    const stockRecs = data && Array.isArray(data.recommendations) ? data.recommendations : [];
+    const validStockRecs = stockRecs.filter(rec => rec && rec.message);
+
+    if (validStockRecs.length > 0) {
+        container.innerHTML = validStockRecs.map(rec => `
+            <div class="recommendation-item ${rec.priority || 'info'}">
+                <span class="rec-icon">${getRecIcon(rec.type)}</span>
+                <div class="rec-content">
+                    <span class="rec-text">${rec.message || 'No message'}</span>
+                    ${rec.action ? `<button class="btn btn-sm btn-secondary" onclick="${rec.action}">${rec.action_label || 'Take Action'}</button>` : ''}
+                </div>
             </div>
-        `;
+        `).join('');
         return;
     }
 
-    // Filter out invalid recommendations and map to HTML
-    const validRecs = data.recommendations.filter(rec => rec && rec.message);
+    // Fallback: Habit + Goal conflict ranked recommendations
+    const ranked = Array.isArray(habitInsights?.ranked_recommendations)
+        ? habitInsights.ranked_recommendations
+        : [];
 
-    if (validRecs.length === 0) {
-        container.innerHTML = `
-            <div class="recommendation-item">
-                <span class="rec-icon">💡</span>
-                <span class="rec-text">Add more stocks to your portfolio for personalized recommendations.</span>
+    if (ranked.length > 0) {
+        container.innerHTML = ranked.slice(0, 3).map((rec, idx) => `
+            <div class="recommendation-item moderate-priority">
+                <span class="rec-icon">🧠</span>
+                <div class="rec-content">
+                    <span class="rec-text"><strong>#${idx + 1}</strong> ${rec.recommendation || rec.why_ranked || 'Behavioral improvement recommendation.'}</span>
+                    <span class="rec-action">Potential timeline reduction: ${(Number(rec.goal_timeline_reduction_months || 0)).toFixed(1)} months</span>
+                </div>
             </div>
-        `;
+        `).join('');
         return;
     }
 
-    container.innerHTML = validRecs.map(rec => `
-        <div class="recommendation-item ${rec.priority || 'info'}">
-            <span class="rec-icon">${getRecIcon(rec.type)}</span>
-            <div class="rec-content">
-                <span class="rec-text">${rec.message || 'No message'}</span>
-                ${rec.action ? `<button class="btn btn-sm btn-secondary" onclick="${rec.action}">${rec.action_label || 'Take Action'}</button>` : ''}
-            </div>
+    container.innerHTML = `
+        <div class="recommendation-item">
+            <span class="rec-icon">💡</span>
+            <span class="rec-text">No personalized recommendations yet. Add expenses and goal progress data to unlock AI insights.</span>
         </div>
-    `).join('');
+    `;
 }
 
 function getRecIcon(type) {

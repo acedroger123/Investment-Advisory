@@ -1,11 +1,18 @@
 import joblib
 import pandas as pd
 
-from nlp_ranker import rank_templates
-from recommendation_ranking_model import (
-    RecommendationRankingPersonalizationModel,
-    build_ranking_input,
-)
+try:
+    from .nlp_ranker import rank_templates
+    from .recommendation_ranking_model import (
+        RecommendationRankingPersonalizationModel,
+        build_ranking_input,
+    )
+except ImportError:
+    from nlp_ranker import rank_templates
+    from recommendation_ranking_model import (
+        RecommendationRankingPersonalizationModel,
+        build_ranking_input,
+    )
 
 
 TEMPLATE_LIBRARY = {
