@@ -8,7 +8,12 @@ from datetime import date
 from typing import Optional, List
 
 from portfolio_backend.database import get_db
-from portfolio_backend.database.models import Goal, User
+from portfolio_backend.database.models import Goal
+from portfolio_backend.auth import (
+    get_current_pg_user_id,
+    get_or_create_pa_user,
+    get_goal_for_pg_user
+)
 from portfolio_backend.services.portfolio_service import PortfolioService
 
 router = APIRouter(prefix="/goals", tags=["Goals"])
@@ -53,21 +58,14 @@ class GoalResponse(BaseModel):
         from_attributes = True
 
 
-def get_or_create_default_user(db: Session) -> User:
-    """Get or create a default user for the demo."""
-    user = db.query(User).filter(User.username == "demo_user").first()
-    if not user:
-        user = User(username="demo_user", email="demo@example.com")
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-    return user
-
-
 @router.post("", response_model=dict, status_code=status.HTTP_201_CREATED)
-async def create_goal(goal: GoalCreate, db: Session = Depends(get_db)):
+async def create_goal(
+    goal: GoalCreate,
+    pg_user_id: int = Depends(get_current_pg_user_id),
+    db: Session = Depends(get_db)
+):
     """Create a new financial goal."""
-    user = get_or_create_default_user(db)
+    user = get_or_create_pa_user(db, pg_user_id)
     
     # Validate deadline
     if goal.deadline <= date.today():
@@ -107,9 +105,12 @@ async def create_goal(goal: GoalCreate, db: Session = Depends(get_db)):
 
 
 @router.get("", response_model=List[dict])
-async def list_goals(db: Session = Depends(get_db)):
+async def list_goals(
+    pg_user_id: int = Depends(get_current_pg_user_id),
+    db: Session = Depends(get_db)
+):
     """List all goals with progress."""
-    user = get_or_create_default_user(db)
+    user = get_or_create_pa_user(db, pg_user_id)
     goals = db.query(Goal).filter(Goal.user_id == user.id).all()
     
     result = []
@@ -132,9 +133,13 @@ async def list_goals(db: Session = Depends(get_db)):
 
 
 @router.get("/{goal_id}", response_model=dict)
-async def get_goal(goal_id: int, db: Session = Depends(get_db)):
+async def get_goal(
+    goal_id: int,
+    pg_user_id: int = Depends(get_current_pg_user_id),
+    db: Session = Depends(get_db)
+):
     """Get goal details with full portfolio information."""
-    goal = db.query(Goal).filter(Goal.id == goal_id).first()
+    goal = get_goal_for_pg_user(db, goal_id, pg_user_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
     
@@ -156,9 +161,14 @@ async def get_goal(goal_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{goal_id}", response_model=dict)
-async def update_goal(goal_id: int, goal_update: GoalUpdate, db: Session = Depends(get_db)):
+async def update_goal(
+    goal_id: int,
+    goal_update: GoalUpdate,
+    pg_user_id: int = Depends(get_current_pg_user_id),
+    db: Session = Depends(get_db)
+):
     """Update goal parameters."""
-    goal = db.query(Goal).filter(Goal.id == goal_id).first()
+    goal = get_goal_for_pg_user(db, goal_id, pg_user_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
     
@@ -188,9 +198,13 @@ async def update_goal(goal_id: int, goal_update: GoalUpdate, db: Session = Depen
 
 
 @router.delete("/{goal_id}", response_model=dict)
-async def delete_goal(goal_id: int, db: Session = Depends(get_db)):
+async def delete_goal(
+    goal_id: int,
+    pg_user_id: int = Depends(get_current_pg_user_id),
+    db: Session = Depends(get_db)
+):
     """Delete a goal."""
-    goal = db.query(Goal).filter(Goal.id == goal_id).first()
+    goal = get_goal_for_pg_user(db, goal_id, pg_user_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
     

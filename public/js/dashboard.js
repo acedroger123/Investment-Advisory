@@ -6,11 +6,42 @@
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', async () => {
     await loadGoals();
+    await loadSurveyProfile();
     setupEventListeners();
     setDefaultDeadline();
+    await loadExpenseDashboardWidgets();
 });
 
 let currentGoalId = null;
+const expenseChartInstances = {};
+
+const incomeRangeLabel = {
+    1: 'Below 20,000/month',
+    2: '20,000-50,000/month',
+    3: '50,000-100,000/month',
+    4: 'Above 100,000/month'
+};
+
+const savingsBucketLabel = {
+    1: 'Less than 10%',
+    2: '10-20%',
+    3: '21-30%',
+    4: 'More than 30%'
+};
+
+const riskLabelMap = {
+    1: 'Low',
+    2: 'Conservative',
+    3: 'Moderate',
+    4: 'Aggressive'
+};
+
+const timeHorizonLabel = {
+    1: 'Less than 3 years',
+    2: '3-5 years',
+    3: '6-10 years',
+    4: 'More than 10 years'
+};
 
 /**
  * Load all goals into the selector
@@ -59,6 +90,7 @@ async function loadGoalData() {
     if (!currentGoalId) {
         updateFeasibilitySummary(null);
         renderHabitConflictSummary(null, 'Select a goal to load habit intelligence.');
+        await loadExpenseDashboardWidgets();
         return;
     }
 
@@ -98,7 +130,8 @@ async function loadGoalData() {
             updateCharts(portfolio),
             loadGrowthChart(currentGoalId),
             loadRiskChart(currentGoalId),
-            loadAlerts(currentGoalId)
+            loadAlerts(currentGoalId),
+            loadExpenseDashboardWidgets()
         ]);
 
     } catch (error) {
@@ -108,19 +141,76 @@ async function loadGoalData() {
     }
 }
 
+async function loadSurveyProfile() {
+    const summaryEl = document.getElementById('surveyProfileSummary');
+    if (!summaryEl) return;
+
+    try {
+        const profile = await API.UserProfile.getSurveyProfile();
+        if (!profile || !profile.questionnaire_completed) {
+            summaryEl.innerHTML = '<p class="survey-profile-empty">Complete onboarding questionnaire to personalize this dashboard.</p>';
+            return;
+        }
+
+        const incomeText = incomeRangeLabel[profile.annual_income_range] || `Range ${profile.annual_income_range || '--'}`;
+        const savingsText = savingsBucketLabel[profile.savings_percent] || `${Math.round((profile.savings_ratio || 0) * 100)}%`;
+        const riskText = riskLabelMap[profile.risk_label] || `Level ${profile.risk_label || '--'}`;
+        const horizonText = timeHorizonLabel[profile.time_horizon] || `Bucket ${profile.time_horizon || '--'}`;
+        const goalText = profile.goal || '--';
+        const occupationText = profile.occupation || '--';
+        const annualEstimate = Number(profile.annual_income_estimate || 0);
+        const annualEstimateText = annualEstimate > 0 ? `${formatCurrency(annualEstimate)}/year est.` : 'Not set';
+
+        summaryEl.innerHTML = `
+            <div class="survey-profile-grid">
+                <div class="survey-profile-tile">
+                    <span class="survey-profile-label">Occupation</span>
+                    <span class="survey-profile-value">${occupationText}</span>
+                </div>
+                <div class="survey-profile-tile">
+                    <span class="survey-profile-label">Income</span>
+                    <span class="survey-profile-value">${incomeText}</span>
+                    <span class="survey-profile-subvalue">${annualEstimateText}</span>
+                </div>
+                <div class="survey-profile-tile">
+                    <span class="survey-profile-label">Savings Habit</span>
+                    <span class="survey-profile-value">${savingsText}</span>
+                </div>
+                <div class="survey-profile-tile">
+                    <span class="survey-profile-label">Risk Profile</span>
+                    <span class="survey-profile-value">${riskText}</span>
+                </div>
+                <div class="survey-profile-tile">
+                    <span class="survey-profile-label">Primary Goal</span>
+                    <span class="survey-profile-value">${goalText}</span>
+                </div>
+                <div class="survey-profile-tile">
+                    <span class="survey-profile-label">Horizon</span>
+                    <span class="survey-profile-value">${horizonText}</span>
+                </div>
+            </div>
+        `;
+    } catch (error) {
+        console.warn('Error loading survey profile:', error);
+        summaryEl.innerHTML = '<p class="survey-profile-empty">Survey profile unavailable right now.</p>';
+    }
+}
+
 /**
  * Update stats cards with portfolio data
  */
 function updateStatsCards(summary) {
     if (!summary) return;
 
+    const unrealizedPct = summary.unrealized_pnl_percentage ?? summary.pnl_percentage ?? 0;
+    const totalPct = summary.total_pnl_percentage ?? unrealizedPct;
+
     // Portfolio Value
     document.getElementById('portfolioValue').textContent = formatCurrency(summary.total_current_value);
 
     const changeEl = document.getElementById('portfolioChange');
-    const pnlPct = summary.pnl_percentage || 0;
-    changeEl.textContent = formatPercent(pnlPct);
-    changeEl.className = `stat-change ${pnlPct >= 0 ? 'positive' : 'negative'}`;
+    changeEl.textContent = formatPercent(unrealizedPct);
+    changeEl.className = `stat-change ${unrealizedPct >= 0 ? 'positive' : 'negative'}`;
 
     // Goal Progress
     document.getElementById('goalProgress').textContent = `${(summary.progress_percentage || 0).toFixed(1)}%`;
@@ -130,8 +220,8 @@ function updateStatsCards(summary) {
     document.getElementById('totalPnl').textContent = formatCurrency(summary.total_pnl);
 
     const pnlPercentEl = document.getElementById('pnlPercent');
-    pnlPercentEl.textContent = formatPercent(pnlPct);
-    pnlPercentEl.className = `stat-change ${pnlPct >= 0 ? 'positive' : 'negative'}`;
+    pnlPercentEl.textContent = formatPercent(totalPct);
+    pnlPercentEl.className = `stat-change ${totalPct >= 0 ? 'positive' : 'negative'}`;
 
     // Days Remaining
     document.getElementById('daysRemaining').textContent = summary.days_remaining || 0;
@@ -198,6 +288,257 @@ function renderHabitConflictSummary(data, fallbackMessage = null) {
         li.textContent = step;
         roadmapEl.appendChild(li);
     });
+}
+
+function destroyExpenseChart(chartId) {
+    if (expenseChartInstances[chartId]) {
+        expenseChartInstances[chartId].destroy();
+        delete expenseChartInstances[chartId];
+    }
+}
+
+function setExpenseChartEmptyState(elementId, message, isVisible) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    el.textContent = message;
+    el.classList.toggle('hidden', !isVisible);
+}
+
+function setExpenseBehaviorMessage(message, isError = false) {
+    const behaviorEl = document.getElementById('expenseBehaviorMessage');
+    if (!behaviorEl) return;
+    behaviorEl.textContent = message;
+    behaviorEl.style.color = isError ? 'var(--color-accent-red)' : '#9fb8ff';
+}
+
+async function fetchDashboardJson(url) {
+    const response = await fetch(url, { credentials: 'include' });
+    let data = {};
+    try {
+        data = await response.json();
+    } catch (error) {
+        data = {};
+    }
+
+    if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP ${response.status}`);
+    }
+    return data;
+}
+
+function normalizeExpenseRows(expenses) {
+    return (Array.isArray(expenses) ? expenses : [])
+        .map((row) => ({
+            amount: Number(row.amount || 0),
+            category: row.category || 'Other',
+            date: row.date ? new Date(row.date) : null
+        }))
+        .filter((row) => Number.isFinite(row.amount) && row.amount > 0 && row.date && !Number.isNaN(row.date.getTime()));
+}
+
+function aggregateSpendingByDate(expenses, maxPoints = 14) {
+    const map = new Map();
+
+    expenses.forEach((row) => {
+        const key = row.date.toISOString().slice(0, 10);
+        map.set(key, (map.get(key) || 0) + row.amount);
+    });
+
+    return Array.from(map.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .slice(-maxPoints)
+        .map(([dateKey, total]) => ({
+            label: new Date(dateKey).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+            value: Number(total.toFixed(2))
+        }));
+}
+
+function aggregateSpendingByCategory(expenses, maxBuckets = 6) {
+    const map = new Map();
+    expenses.forEach((row) => {
+        const key = String(row.category || 'Other').trim() || 'Other';
+        map.set(key, (map.get(key) || 0) + row.amount);
+    });
+
+    const sorted = Array.from(map.entries())
+        .sort((a, b) => b[1] - a[1]);
+
+    const top = sorted.slice(0, maxBuckets);
+    const rest = sorted.slice(maxBuckets);
+    const otherTotal = rest.reduce((sum, [, value]) => sum + value, 0);
+
+    if (otherTotal > 0) {
+        top.push(['Other', otherTotal]);
+    }
+
+    return top.map(([name, value]) => ({ name, value: Number(value.toFixed(2)) }));
+}
+
+function renderSpendingTrendChart(expenses) {
+    const canvas = document.getElementById('spendingTrendChart');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    const points = aggregateSpendingByDate(expenses);
+    const hasData = points.length > 0;
+    setExpenseChartEmptyState('spendingTrendEmpty', 'Add expenses to view spending trends.', !hasData);
+
+    destroyExpenseChart('spendingTrendChart');
+    if (!hasData) return;
+
+    expenseChartInstances.spendingTrendChart = new Chart(canvas, {
+        type: 'line',
+        data: {
+            labels: points.map((point) => point.label),
+            datasets: [{
+                label: 'Daily Spend',
+                data: points.map((point) => point.value),
+                borderColor: '#4e7cff',
+                backgroundColor: 'rgba(78, 124, 255, 0.14)',
+                pointBackgroundColor: '#7ea3ff',
+                pointBorderColor: '#7ea3ff',
+                pointRadius: 2.5,
+                pointHoverRadius: 5,
+                borderWidth: 2,
+                fill: true,
+                tension: 0.35
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => `Spent: ${formatCurrency(ctx.raw)}`
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#94a3b8' }
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(148, 163, 184, 0.12)' },
+                    ticks: {
+                        color: '#94a3b8',
+                        callback: (value) => formatCurrency(value)
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderExpenseBreakdownChart(expenses) {
+    const canvas = document.getElementById('expenseBreakdownChart');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    const buckets = aggregateSpendingByCategory(expenses);
+    const hasData = buckets.length > 0;
+    setExpenseChartEmptyState('expenseBreakdownEmpty', 'Add expenses to view category mix.', !hasData);
+
+    destroyExpenseChart('expenseBreakdownChart');
+    if (!hasData) return;
+
+    const palette = ['#4e7cff', '#7a67ff', '#24c4ff', '#22c55e', '#f59e0b', '#ef4444', '#a855f7'];
+    expenseChartInstances.expenseBreakdownChart = new Chart(canvas, {
+        type: 'doughnut',
+        data: {
+            labels: buckets.map((item) => item.name),
+            datasets: [{
+                data: buckets.map((item) => item.value),
+                backgroundColor: palette.slice(0, buckets.length),
+                borderColor: '#0f1322',
+                borderWidth: 2,
+                hoverOffset: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '62%',
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'bottom',
+                    labels: {
+                        color: '#9aa8c7',
+                        usePointStyle: true,
+                        boxWidth: 8,
+                        padding: 14
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => `${ctx.label}: ${formatCurrency(ctx.raw)}`
+                    }
+                }
+            }
+        }
+    });
+}
+
+async function loadExpenseDashboardWidgets() {
+    const trendCanvas = document.getElementById('spendingTrendChart');
+    const breakdownCanvas = document.getElementById('expenseBreakdownChart');
+    if (!trendCanvas || !breakdownCanvas) return;
+
+    setExpenseBehaviorMessage('AI: Loading behavioral analysis...');
+
+    let normalizedExpenses = [];
+    let expenseLoadError = null;
+    try {
+        const expenseData = await fetchDashboardJson('/api/expenses');
+        normalizedExpenses = normalizeExpenseRows(expenseData);
+    } catch (error) {
+        expenseLoadError = error;
+        console.warn('Unable to load expenses for dashboard widgets:', error.message);
+    }
+
+    renderSpendingTrendChart(normalizedExpenses);
+    renderExpenseBreakdownChart(normalizedExpenses);
+
+    if (expenseLoadError) {
+        setExpenseChartEmptyState('spendingTrendEmpty', 'Unable to load expenses right now.', true);
+        setExpenseChartEmptyState('expenseBreakdownEmpty', 'Unable to load expenses right now.', true);
+        setExpenseBehaviorMessage(`AI: ${expenseLoadError.message || 'Behavioral analysis unavailable right now.'}`, true);
+        return;
+    }
+
+    if (normalizedExpenses.length === 0) {
+        setExpenseBehaviorMessage('AI: Add expenses to activate behavioral analysis.');
+        return;
+    }
+
+    const shouldRunHabitEngine = normalizedExpenses.length >= 2;
+    const [habitResult, profileResult] = await Promise.all([
+        shouldRunHabitEngine
+            ? fetchDashboardJson('/api/habit-goalconflict').then((data) => ({ ok: true, data })).catch((error) => ({ ok: false, error }))
+            : Promise.resolve({ ok: false, error: new Error('Add at least 2 expenses to run habit analysis.') }),
+        fetchDashboardJson('/api/get-financial-profile').then((data) => ({ ok: true, data })).catch((error) => ({ ok: false, error }))
+    ]);
+
+    if (habitResult.ok && habitResult.data) {
+        const summary = habitResult.data.unified_summary || 'Behavioral analysis completed.';
+        const conflictScore = Number(habitResult.data.goal_conflict?.overall_conflict_score ?? 0);
+        const suffix = Number.isFinite(conflictScore) ? ` (Conflict ${(conflictScore * 100).toFixed(1)}%)` : '';
+        setExpenseBehaviorMessage(`AI: ${summary}${suffix}`);
+        return;
+    }
+
+    if (profileResult.ok && profileResult.data?.financial_profile) {
+        const profile = profileResult.data.financial_profile;
+        const score = Number(profile.stability_score ?? 0).toFixed(1);
+        const label = profile.profile_label || 'Unknown';
+        setExpenseBehaviorMessage(`AI: ${label} spending profile with ${score}% stability.`);
+        return;
+    }
+
+    const fallback = habitResult.error?.message || profileResult.error?.message || 'Behavioral analysis unavailable right now.';
+    setExpenseBehaviorMessage(`AI: ${fallback}`, true);
 }
 
 
@@ -287,15 +628,30 @@ function updateRecommendations(data, habitInsights = null) {
 
     // Handle missing or invalid data
     const stockRecs = data && Array.isArray(data.recommendations) ? data.recommendations : [];
-    const validStockRecs = stockRecs.filter(rec => rec && rec.message);
+    const validStockRecs = stockRecs.filter(rec => rec && (rec.message || rec.reason || rec.detail));
+    const profileContext = data?.profile_context || null;
 
     if (validStockRecs.length > 0) {
-        container.innerHTML = validStockRecs.map(rec => `
+        const contextHtml = profileContext ? `
+            <div class="recommendation-context">
+                Personalized for ${profileContext.occupation || 'your profile'}:
+                ${profileContext.risk_text || 'Moderate'} risk,
+                goal "${profileContext.primary_goal || '--'}",
+                horizon ${profileContext.time_horizon_years || '--'} years.
+            </div>
+        ` : '';
+
+        container.innerHTML = contextHtml + validStockRecs.slice(0, 5).map(rec => `
             <div class="recommendation-item ${rec.priority || 'info'}">
-                <span class="rec-icon">${getRecIcon(rec.type)}</span>
+                <span class="rec-icon">${getRecIcon((rec.type || rec.action || '').toLowerCase())}</span>
                 <div class="rec-content">
-                    <span class="rec-text">${rec.message || 'No message'}</span>
-                    ${rec.action ? `<button class="btn btn-sm btn-secondary" onclick="${rec.action}">${rec.action_label || 'Take Action'}</button>` : ''}
+                    <span class="rec-text">${rec.message || rec.reason || rec.detail || 'No message'}</span>
+                    <span class="rec-meta">
+                        ${rec.action ? `Action: ${rec.action}` : ''}
+                        ${rec.symbol ? ` | Symbol: ${rec.symbol}` : ''}
+                        ${Number.isFinite(Number(rec.quantity)) ? ` | Qty: ${rec.quantity}` : ''}
+                        ${Number.isFinite(Number(rec.suggested_monthly)) ? ` | Suggested monthly: ${formatCurrency(Number(rec.suggested_monthly))}` : ''}
+                    </span>
                 </div>
             </div>
         `).join('');
@@ -334,6 +690,11 @@ function getRecIcon(type) {
         'sell': '📉',
         'rebalance': '⚖️',
         'diversify': '🎯',
+        'protect_position': '🛡️',
+        'adjust_plan': '🧮',
+        'align_with_goal': '🧭',
+        'liquidity_buffer': '💧',
+        'automate_small_sip': '🔁',
         'risk': '⚠️',
         'goal': '🏆',
         'info': '💡'

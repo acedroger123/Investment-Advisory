@@ -1,25 +1,23 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from typing import Any
+from fastapi.middleware.cors import CORSMiddleware
 
+# Standard absolute imports
 try:
-    from .habbit import RuleEnhancedHabitDetector
-    from .recommendation_engine import recommend_ranked_behaviors
-    from .transaction_analyzer import analyze_transaction
-    from .category_config import CATEGORY_TO_NATURE
-    from .conflict_detection_model import ExpenseGoalConflictModel
-except ImportError:
     from habbit import RuleEnhancedHabitDetector
     from recommendation_engine import recommend_ranked_behaviors
     from transaction_analyzer import analyze_transaction
     from category_config import CATEGORY_TO_NATURE
     from conflict_detection_model import ExpenseGoalConflictModel
-from fastapi.middleware.cors import CORSMiddleware
+except ImportError as e:
+    print(f"CRITICAL ERROR: Could not find a module or class: {e}")
+    raise
 
 app = FastAPI(title="Habit Intelligence System", version="3.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["http://localhost:8002", "http://127.0.0.1:8002"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

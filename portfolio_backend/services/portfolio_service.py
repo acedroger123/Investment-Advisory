@@ -3,11 +3,10 @@ Portfolio Service - Handles portfolio calculations and tracking.
 All portfolio data is scoped to individual goals (per-goal stock allocation).
 """
 from datetime import date, datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
-from portfolio_backend.database.models import Goal, Transaction, Holding, TransactionType
+from portfolio_backend.database.models import Goal, Transaction, Holding
 from portfolio_backend.services.market_data import MarketDataService
 
 
@@ -17,44 +16,161 @@ class PortfolioService:
     # ==========================================
     # PER-GOAL PORTFOLIO METHODS
     # ==========================================
+
+    @staticmethod
+    def _replay_transactions(db: Session, goal_id: int) -> Tuple[Dict[str, Dict], float, float]:
+        """
+        Replay all transactions for a goal to derive open positions and realized P&L.
+        Returns:
+            positions_by_symbol, realized_pnl, sold_cost_basis
+        """
+        transactions = db.query(Transaction).filter(
+            Transaction.goal_id == goal_id
+        ).order_by(
+            Transaction.transaction_date.asc(),
+            Transaction.id.asc()
+        ).all()
+
+        positions: Dict[str, Dict] = {}
+        realized_pnl = 0.0
+        sold_cost_basis = 0.0
+
+        for txn in transactions:
+            symbol = str(txn.stock_symbol or "").upper().strip()
+            if not symbol:
+                continue
+
+            if symbol not in positions:
+                positions[symbol] = {
+                    "symbol": symbol,
+                    "stock_name": txn.stock_name or symbol,
+                    "qty": 0,
+                    "avg_cost": 0.0,
+                    "total_invested": 0.0
+                }
+
+            state = positions[symbol]
+            qty = int(txn.quantity or 0)
+            price = float(txn.price or 0)
+
+            if qty <= 0 or price <= 0:
+                continue
+
+            txn_type = str(txn.transaction_type or "").upper()
+
+            if txn_type == "BUY":
+                total_cost = state["total_invested"] + (qty * price)
+                new_qty = state["qty"] + qty
+                state["qty"] = new_qty
+                state["avg_cost"] = (total_cost / new_qty) if new_qty > 0 else 0.0
+                state["total_invested"] = total_cost
+                if not state["stock_name"] and txn.stock_name:
+                    state["stock_name"] = txn.stock_name
+
+            elif txn_type == "SELL":
+                sell_qty = min(qty, state["qty"])
+                if sell_qty <= 0:
+                    continue
+
+                cost_basis = sell_qty * state["avg_cost"]
+                sale_value = sell_qty * price
+                realized_pnl += (sale_value - cost_basis)
+                sold_cost_basis += cost_basis
+
+                remaining_qty = state["qty"] - sell_qty
+                state["qty"] = remaining_qty
+                if remaining_qty <= 0:
+                    state["qty"] = 0
+                    state["avg_cost"] = 0.0
+                    state["total_invested"] = 0.0
+                else:
+                    state["total_invested"] = remaining_qty * state["avg_cost"]
+
+        return positions, realized_pnl, sold_cost_basis
+
+    @staticmethod
+    def sync_holdings_table(db: Session, goal_id: int) -> None:
+        """
+        Rebuild pa_holdings from the transaction ledger for a goal.
+        """
+        positions, _, _ = PortfolioService._replay_transactions(db, goal_id)
+        open_positions = {
+            symbol: state
+            for symbol, state in positions.items()
+            if state.get("qty", 0) > 0
+        }
+
+        existing_holdings = db.query(Holding).filter(Holding.goal_id == goal_id).all()
+        existing_by_symbol = {str(h.stock_symbol or "").upper(): h for h in existing_holdings}
+
+        for symbol, state in open_positions.items():
+            qty = int(state.get("qty", 0))
+            avg_cost = float(state.get("avg_cost", 0.0))
+            total_invested = float(state.get("total_invested", 0.0))
+            stock_name = state.get("stock_name") or symbol
+
+            if symbol in existing_by_symbol:
+                holding = existing_by_symbol[symbol]
+                holding.stock_name = stock_name
+                holding.quantity = qty
+                holding.avg_buy_price = avg_cost
+                holding.total_invested = total_invested
+            else:
+                db.add(Holding(
+                    goal_id=goal_id,
+                    stock_symbol=symbol,
+                    stock_name=stock_name,
+                    quantity=qty,
+                    avg_buy_price=avg_cost,
+                    total_invested=total_invested
+                ))
+
+        for symbol, holding in existing_by_symbol.items():
+            if symbol not in open_positions:
+                db.delete(holding)
     
     @staticmethod
     def get_holdings(db: Session, goal_id: int) -> List[Dict]:
         """Get all holdings for a specific goal with current values.
         Uses batch price fetching to avoid per-stock API calls."""
-        holdings = db.query(Holding).filter(
-            Holding.goal_id == goal_id,
-            Holding.quantity > 0
-        ).all()
-        
-        if not holdings:
+        positions, _, _ = PortfolioService._replay_transactions(db, goal_id)
+        open_positions = [p for p in positions.values() if p.get("qty", 0) > 0]
+
+        if not open_positions:
             return []
-        
+
         # Batch fetch all prices at once (single yfinance call)
-        symbols = [h.stock_symbol for h in holdings]
+        symbols = [p["symbol"] for p in open_positions]
         prices = MarketDataService.get_multiple_current_prices(symbols)
-        
+
         result = []
-        for holding in holdings:
-            current_price = prices.get(holding.stock_symbol)
-            current_value = holding.quantity * current_price if current_price else 0
-            unrealized_pnl = current_value - holding.total_invested if current_price else 0
-            unrealized_pnl_pct = (unrealized_pnl / holding.total_invested * 100) if holding.total_invested > 0 else 0
-            
+        for state in open_positions:
+            symbol = state["symbol"]
+            qty = int(state.get("qty", 0))
+            avg_buy_price = float(state.get("avg_cost", 0.0))
+            total_invested = float(state.get("total_invested", 0.0))
+
+            live_price = prices.get(symbol)
+            effective_price = float(live_price) if live_price else avg_buy_price
+
+            current_value = qty * effective_price
+            unrealized_pnl = current_value - total_invested
+            unrealized_pnl_pct = (unrealized_pnl / total_invested * 100) if total_invested > 0 else 0
+
             result.append({
-                "id": holding.id,
-                "symbol": holding.stock_symbol,
-                "name": holding.stock_name or holding.stock_symbol,
-                "quantity": holding.quantity,
-                "avg_buy_price": round(holding.avg_buy_price, 2),
-                "total_invested": round(holding.total_invested, 2),
-                "current_price": round(current_price, 2) if current_price else None,
+                "id": None,
+                "symbol": symbol,
+                "name": state.get("stock_name") or symbol,
+                "quantity": qty,
+                "avg_buy_price": round(avg_buy_price, 2),
+                "total_invested": round(total_invested, 2),
+                "current_price": round(effective_price, 2) if effective_price else None,
                 "current_value": round(current_value, 2),
                 "unrealized_pnl": round(unrealized_pnl, 2),
                 "unrealized_pnl_pct": round(unrealized_pnl_pct, 2),
-                "last_updated": holding.last_updated.isoformat() if holding.last_updated else None
+                "last_updated": datetime.utcnow().isoformat()
             })
-        
+
         return result
     
     @staticmethod
@@ -72,26 +188,13 @@ class PortfolioService:
         total_invested = sum(h['total_invested'] for h in holdings)
         total_current_value = sum(h['current_value'] for h in holdings if h['current_value'])
         total_unrealized_pnl = sum(h['unrealized_pnl'] for h in holdings if h['unrealized_pnl'])
-        
-        # Calculate realized P&L from SELL transactions for this goal
-        sell_transactions = db.query(Transaction).filter(
-            Transaction.goal_id == goal_id,
-            Transaction.transaction_type == 'SELL'
-        ).all()
-        
-        realized_pnl = 0
-        for txn in sell_transactions:
-            holding = db.query(Holding).filter(
-                Holding.goal_id == goal_id,
-                Holding.stock_symbol == txn.stock_symbol
-            ).first()
-            if holding:
-                cost_basis = txn.quantity * holding.avg_buy_price
-                sale_value = txn.total_value
-                realized_pnl += (sale_value - cost_basis) if sale_value else 0
-        
+
+        _, realized_pnl, sold_cost_basis = PortfolioService._replay_transactions(db, goal_id)
+
         total_pnl = total_unrealized_pnl + realized_pnl
-        pnl_percentage = (total_unrealized_pnl / total_invested * 100) if total_invested > 0 else 0
+        unrealized_pnl_percentage = (total_unrealized_pnl / total_invested * 100) if total_invested > 0 else 0
+        lifetime_cost_basis = total_invested + sold_cost_basis
+        total_pnl_percentage = (total_pnl / lifetime_cost_basis * 100) if lifetime_cost_basis > 0 else 0
         
         # Goal progress
         progress_percentage = (total_current_value / goal.target_value * 100) if goal.target_value > 0 else 0
@@ -117,9 +220,11 @@ class PortfolioService:
             "total_invested": round(total_invested, 2),
             "total_current_value": round(total_current_value, 2),
             "total_unrealized_pnl": round(total_unrealized_pnl, 2),
+            "unrealized_pnl_percentage": round(unrealized_pnl_percentage, 2),
             "total_realized_pnl": round(realized_pnl, 2),
             "total_pnl": round(total_pnl, 2),
-            "pnl_percentage": round(pnl_percentage, 2),
+            "pnl_percentage": round(unrealized_pnl_percentage, 2),
+            "total_pnl_percentage": round(total_pnl_percentage, 2),
             "progress_percentage": round(min(progress_percentage, 100), 2),
             "amount_remaining": round(max(0, goal.target_value - total_current_value), 2),
             "daily_growth_needed": round(daily_growth_needed, 2),
@@ -167,41 +272,13 @@ class PortfolioService:
         quantity: int,
         price: float
     ) -> Holding:
-        """Update or create a per-goal holding based on a transaction."""
-        holding = db.query(Holding).filter(
+        """Backward-compatible helper: rebuild holdings from transaction ledger."""
+        PortfolioService.sync_holdings_table(db, goal_id)
+        db.commit()
+        return db.query(Holding).filter(
             Holding.goal_id == goal_id,
             Holding.stock_symbol == symbol
         ).first()
-        
-        if transaction_type.upper() == "BUY":
-            if holding:
-                # Calculate new average price
-                old_total = holding.quantity * holding.avg_buy_price
-                new_total = old_total + (quantity * price)
-                holding.quantity += quantity
-                holding.avg_buy_price = new_total / holding.quantity if holding.quantity > 0 else 0
-                holding.total_invested = new_total
-            else:
-                # Create new holding
-                holding = Holding(
-                    goal_id=goal_id,
-                    stock_symbol=symbol,
-                    stock_name=stock_name,
-                    quantity=quantity,
-                    avg_buy_price=price,
-                    total_invested=quantity * price
-                )
-                db.add(holding)
-        else:  # SELL
-            if holding:
-                holding.quantity -= quantity
-                if holding.quantity <= 0:
-                    db.delete(holding)
-                else:
-                    holding.total_invested = holding.quantity * holding.avg_buy_price
-        
-        db.commit()
-        return holding
     
     @staticmethod
     def get_portfolio_history(db: Session, goal_id: int, days: int = 30) -> List[Dict]:

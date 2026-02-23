@@ -7,9 +7,104 @@ document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("expenseForm");
   const list = document.getElementById("expenseList");
   const syncBtn = document.getElementById("syncGmailBtn");
+  const aiInsightsContainer = document.getElementById("ai-insights-container");
+  const habitText = document.getElementById("habitText");
 
   // State to hold real expenses from Database
   let expenses = [];
+
+  const escapeHtml = (value) =>
+    String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  const formatINR = (value) => {
+    const amount = Number(value);
+    if (!Number.isFinite(amount)) return "₹0";
+    return `₹${amount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+  };
+
+  async function fetchJson(endpoint) {
+    try {
+      const response = await fetch(endpoint, { credentials: "include" });
+      let data = {};
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
+      }
+      return { ok: response.ok, status: response.status, data };
+    } catch (error) {
+      return { ok: false, status: 0, data: { message: "Network error", detail: String(error) } };
+    }
+  }
+
+  function renderAIInsights(cards) {
+    if (!aiInsightsContainer) return;
+
+    if (!Array.isArray(cards) || cards.length === 0) {
+      aiInsightsContainer.innerHTML = '<p class="expense-insight-empty">No AI insights available right now.</p>';
+      return;
+    }
+
+    aiInsightsContainer.innerHTML = cards
+      .slice(0, 5)
+      .map((card) => `
+        <div class="expense-insight-item">
+          <div class="expense-insight-title">${escapeHtml(card.title)}</div>
+          <div class="expense-insight-text">${escapeHtml(card.text)}</div>
+        </div>
+      `)
+      .join("");
+  }
+
+  function renderHabitDetection(habitResponse) {
+    if (!habitText) return;
+
+    if (habitResponse.ok) {
+      const payload = habitResponse.data || {};
+      const confidenceRaw = Number(payload.habit_confidence ?? 0);
+      const confidencePct = Number.isFinite(confidenceRaw)
+        ? Math.round((confidenceRaw <= 1 ? confidenceRaw * 100 : confidenceRaw))
+        : 0;
+      const intervention = payload.intervention_level || "Low";
+      const summary = payload.unified_summary || "Habit analysis completed.";
+      const conflictScoreRaw = Number(payload.goal_conflict?.overall_conflict_score);
+      const conflictScore = Number.isFinite(conflictScoreRaw)
+        ? `${(conflictScoreRaw * 100).toFixed(1)}%`
+        : "N/A";
+      const alerts = Array.isArray(payload.transaction_alert) ? payload.transaction_alert : [];
+
+      habitText.innerHTML = `
+        <div class="expense-habit-metric">
+          <strong>Intervention:</strong> ${escapeHtml(intervention)}
+          <span>|</span>
+          <strong>Confidence:</strong> ${confidencePct}%
+          <span>|</span>
+          <strong>Goal Conflict:</strong> ${escapeHtml(conflictScore)}
+        </div>
+        <div class="expense-habit-summary">${escapeHtml(summary)}</div>
+        ${alerts.length > 0
+          ? `<ul class="expense-habit-alerts">${alerts
+            .slice(0, 3)
+            .map((alert) => `<li>${escapeHtml(alert)}</li>`)
+            .join("")}</ul>`
+          : ""}
+      `;
+      return;
+    }
+
+    const fallbackMessage =
+      habitResponse.data?.message ||
+      habitResponse.data?.detail?.message ||
+      habitResponse.data?.detail ||
+      "Habit engine unavailable right now.";
+
+    habitText.innerHTML = `<p class="expense-insight-empty">${escapeHtml(fallbackMessage)}</p>`;
+  }
 
   // --- 1. MODAL LOGIC (Using .active class — matches goal modal) ---
   if (openBtn) openBtn.onclick = () => modal.classList.add("active");
@@ -159,11 +254,83 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- 6. SYNC WITH PYTHON ML MODELS ---
   async function updateAIInsights() {
-    try {
-      // Pings the stability API on Port 8000
-      await fetch("/api/get-financial-profile", { credentials: "include" });
-    } catch (e) {
-      console.warn("AI models unreachable. Run run_all.py.");
+    renderAIInsights([{ title: "Loading AI insights...", text: "Analyzing your recent expenses." }]);
+    if (habitText) {
+      habitText.innerHTML = '<p class="expense-insight-empty">Running habit detection...</p>';
+    }
+
+    const shouldRunHabitEngine = expenses.length >= 2;
+    const [financialProfileRes, aiAnalysisRes, habitRes] = await Promise.all([
+      fetchJson("/api/get-financial-profile"),
+      fetchJson("/api/ai-analysis"),
+      shouldRunHabitEngine
+        ? fetchJson("/api/habit-goalconflict")
+        : Promise.resolve({
+          ok: false,
+          status: 400,
+          data: { message: "Add at least 2 expenses to detect habits." }
+        })
+    ]);
+
+    const cards = [];
+
+    if (financialProfileRes.ok && financialProfileRes.data?.financial_profile) {
+      const fp = financialProfileRes.data.financial_profile;
+      const confidenceRaw = Number(fp.confidence ?? 0);
+      const confidencePct = Number.isFinite(confidenceRaw)
+        ? `${Math.round((confidenceRaw <= 1 ? confidenceRaw * 100 : confidenceRaw))}%`
+        : "N/A";
+      cards.push({
+        title: `Financial Profile: ${fp.profile_label || "Unknown"}`,
+        text: `Spending stability ${Number(fp.stability_score || 0).toFixed(1)}% with confidence ${confidencePct}.`
+      });
+    }
+
+    if (aiAnalysisRes.ok && Array.isArray(aiAnalysisRes.data?.suggestions)) {
+      aiAnalysisRes.data.suggestions.slice(0, 2).forEach((insight) => {
+        cards.push({
+          title: insight.title || "AI Insight",
+          text: insight.text || "No details provided."
+        });
+      });
+    }
+
+    if (habitRes.ok) {
+      const monthlyDirection = habitRes.data?.ai_guidance?.monthly_strategic_direction;
+      const primaryStrategy = habitRes.data?.primary_strategy;
+      const impact = habitRes.data?.ai_guidance?.impact_summary;
+
+      if (primaryStrategy) {
+        cards.push({
+          title: "Primary Strategy",
+          text: primaryStrategy
+        });
+      }
+
+      if (monthlyDirection) {
+        cards.push({
+          title: "Monthly Direction",
+          text: monthlyDirection
+        });
+      }
+
+      if (impact && Number.isFinite(Number(impact.potential_savings_monthly))) {
+        cards.push({
+          title: "Potential Impact",
+          text: `Save around ${formatINR(impact.potential_savings_monthly)}/month, cover ${Number(
+            impact.goal_gap_covered_pct || 0
+          ).toFixed(1)}% gap, reduce timeline by ${Number(
+            impact.timeline_reduction_months || 0
+          ).toFixed(1)} months.`
+        });
+      }
+    }
+
+    renderAIInsights(cards);
+    renderHabitDetection(habitRes);
+
+    if (!financialProfileRes.ok && !aiAnalysisRes.ok && !habitRes.ok) {
+      console.warn("AI services unreachable. Ensure Python APIs are running.");
     }
   }
 

@@ -9,7 +9,8 @@ from datetime import date
 from typing import Optional, List
 
 from portfolio_backend.database import get_db
-from portfolio_backend.database.models import Transaction, Goal, Holding
+from portfolio_backend.database.models import Transaction, Goal, User
+from portfolio_backend.auth import get_current_pg_user_id, get_goal_for_pg_user
 from portfolio_backend.services.market_data import MarketDataService
 from portfolio_backend.services.portfolio_service import PortfolioService
 
@@ -44,13 +45,17 @@ class TransactionResponse(BaseModel):
 
 
 @router.post("", response_model=dict, status_code=status.HTTP_201_CREATED)
-async def create_transaction(txn: TransactionCreate, db: Session = Depends(get_db)):
+async def create_transaction(
+    txn: TransactionCreate,
+    pg_user_id: int = Depends(get_current_pg_user_id),
+    db: Session = Depends(get_db)
+):
     """Record a new stock transaction with price validation.
     
     Transactions are scoped to a specific goal.
     """
     # Validate goal exists
-    goal = db.query(Goal).filter(Goal.id == txn.goal_id).first()
+    goal = get_goal_for_pg_user(db, txn.goal_id, pg_user_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
     
@@ -66,13 +71,10 @@ async def create_transaction(txn: TransactionCreate, db: Session = Depends(get_d
     
     # For SELL, check if we have enough shares in this goal's holdings
     if txn.transaction_type.upper() == "SELL":
-        holding = db.query(Holding).filter(
-            Holding.goal_id == txn.goal_id,
-            Holding.stock_symbol == symbol
-        ).first()
-        
-        if not holding or holding.quantity < txn.quantity:
-            current_qty = holding.quantity if holding else 0
+        positions, _, _ = PortfolioService._replay_transactions(db, txn.goal_id)
+        current_qty = int((positions.get(symbol) or {}).get("qty", 0))
+
+        if current_qty < txn.quantity:
             raise HTTPException(
                 status_code=400,
                 detail=f"Insufficient shares in this goal. You have {current_qty} shares of {symbol}"
@@ -94,18 +96,11 @@ async def create_transaction(txn: TransactionCreate, db: Session = Depends(get_d
     transaction.calculate_total_value()
     
     db.add(transaction)
+    db.flush()
+
+    # Always rebuild holdings from transactions to keep portfolio math consistent.
+    PortfolioService.sync_holdings_table(db, txn.goal_id)
     db.commit()
-    
-    # Update per-goal holdings
-    PortfolioService.update_holding_on_transaction(
-        db=db,
-        goal_id=txn.goal_id,
-        symbol=symbol,
-        stock_name=stock_name,
-        transaction_type=txn.transaction_type,
-        quantity=txn.quantity,
-        price=txn.price
-    )
     
     db.refresh(transaction)
     
@@ -130,10 +125,16 @@ async def create_transaction(txn: TransactionCreate, db: Session = Depends(get_d
 async def list_transactions(
     goal_id: Optional[int] = None,
     limit: int = 50,
+    pg_user_id: int = Depends(get_current_pg_user_id),
     db: Session = Depends(get_db)
 ):
     """List transactions, optionally filtered by goal."""
-    query = db.query(Transaction)
+    query = (
+        db.query(Transaction)
+        .join(Goal, Transaction.goal_id == Goal.id)
+        .join(User, Goal.user_id == User.id)
+        .filter(User.pg_user_id == pg_user_id)
+    )
     
     if goal_id:
         query = query.filter(Transaction.goal_id == goal_id)
@@ -159,9 +160,19 @@ async def list_transactions(
 
 
 @router.get("/{transaction_id}", response_model=dict)
-async def get_transaction(transaction_id: int, db: Session = Depends(get_db)):
+async def get_transaction(
+    transaction_id: int,
+    pg_user_id: int = Depends(get_current_pg_user_id),
+    db: Session = Depends(get_db)
+):
     """Get transaction details."""
-    txn = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+    txn = (
+        db.query(Transaction)
+        .join(Goal, Transaction.goal_id == Goal.id)
+        .join(User, Goal.user_id == User.id)
+        .filter(Transaction.id == transaction_id, User.pg_user_id == pg_user_id)
+        .first()
+    )
     if not txn:
         raise HTTPException(status_code=404, detail="Transaction not found")
     
@@ -183,32 +194,28 @@ async def get_transaction(transaction_id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/{transaction_id}", response_model=dict)
-async def delete_transaction(transaction_id: int, db: Session = Depends(get_db)):
+async def delete_transaction(
+    transaction_id: int,
+    pg_user_id: int = Depends(get_current_pg_user_id),
+    db: Session = Depends(get_db)
+):
     """Delete a transaction (for corrections only)."""
-    txn = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+    txn = (
+        db.query(Transaction)
+        .join(Goal, Transaction.goal_id == Goal.id)
+        .join(User, Goal.user_id == User.id)
+        .filter(Transaction.id == transaction_id, User.pg_user_id == pg_user_id)
+        .first()
+    )
     if not txn:
         raise HTTPException(status_code=404, detail="Transaction not found")
     
-    # Reverse the per-goal holding effect
-    holding = db.query(Holding).filter(
-        Holding.goal_id == txn.goal_id,
-        Holding.stock_symbol == txn.stock_symbol
-    ).first()
-    
-    if holding:
-        if txn.transaction_type.upper() == "BUY":
-            # Reverse buy - reduce holdings
-            holding.quantity -= txn.quantity
-            if holding.quantity <= 0:
-                db.delete(holding)
-            else:
-                holding.total_invested = holding.quantity * holding.avg_buy_price
-        else:
-            # Reverse sell - increase holdings back
-            holding.quantity += txn.quantity
-            holding.total_invested = holding.quantity * holding.avg_buy_price
-    
+    goal_id = txn.goal_id
     db.delete(txn)
+
+    db.flush()
+    # Rebuild holdings from remaining transactions for exact consistency.
+    PortfolioService.sync_holdings_table(db, goal_id)
     db.commit()
     
     return {"message": "Transaction deleted and holdings adjusted."}

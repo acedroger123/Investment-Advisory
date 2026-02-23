@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from portfolio_backend.database import get_db
-from portfolio_backend.database.models import Goal
+from portfolio_backend.auth import get_current_pg_user_id, get_goal_for_pg_user
 from portfolio_backend.services.monte_carlo import MonteCarloService
 from portfolio_backend.services.stress_testing import StressTestingService
 
@@ -23,10 +23,11 @@ class SimulationParams(BaseModel):
 async def run_monte_carlo(
     goal_id: int,
     params: Optional[SimulationParams] = None,
+    pg_user_id: int = Depends(get_current_pg_user_id),
     db: Session = Depends(get_db)
 ):
     """Run Monte Carlo simulation for goal achievement probability."""
-    goal = db.query(Goal).filter(Goal.id == goal_id).first()
+    goal = get_goal_for_pg_user(db, goal_id, pg_user_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
     
@@ -40,9 +41,13 @@ async def run_monte_carlo(
 
 
 @router.post("/{goal_id}/stress-test", response_model=dict)
-async def run_stress_test(goal_id: int, db: Session = Depends(get_db)):
+async def run_stress_test(
+    goal_id: int,
+    pg_user_id: int = Depends(get_current_pg_user_id),
+    db: Session = Depends(get_db)
+):
     """Run stress test scenarios on portfolio."""
-    goal = db.query(Goal).filter(Goal.id == goal_id).first()
+    goal = get_goal_for_pg_user(db, goal_id, pg_user_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
     

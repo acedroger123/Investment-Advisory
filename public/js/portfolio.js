@@ -92,8 +92,10 @@ async function loadPortfolioData() {
 function updateSummaryStats(summary, holdings, performance) {
     const totalInvested = summary?.total_invested || 0;
     const currentValue = summary?.total_current_value || 0;
-    const unrealizedPnl = currentValue - totalInvested;
-    const returnPct = totalInvested > 0 ? ((unrealizedPnl / totalInvested) * 100) : 0;
+    const unrealizedPnl = summary?.total_unrealized_pnl ?? (currentValue - totalInvested);
+    const returnPct = summary?.unrealized_pnl_percentage ?? (
+        totalInvested > 0 ? ((unrealizedPnl / totalInvested) * 100) : 0
+    );
 
     // Total Invested
     document.getElementById('totalInvested').textContent = formatCurrency(totalInvested);
@@ -113,7 +115,7 @@ function updateSummaryStats(summary, holdings, performance) {
     returnEl.className = `stat-change ${returnPct >= 0 ? 'positive' : 'negative'}`;
 
     // CAGR / Overall Return
-    const cagr = performance?.cagr || performance?.total_return_pct || returnPct;
+    const cagr = performance?.cagr || performance?.total_return_pct || summary?.total_pnl_percentage || returnPct;
     const cagrEl = document.getElementById('cagrValue');
     cagrEl.textContent = `${cagr >= 0 ? '+' : ''}${cagr.toFixed(2)}%`;
     cagrEl.className = `stat-value ${cagr >= 0 ? 'text-success' : 'text-danger'}`;
@@ -142,8 +144,12 @@ function updateHoldingsTable(holdings) {
     tbody.innerHTML = holdings.map(h => {
         const currentValue = h.current_value || (h.quantity * (h.current_price || 0));
         const invested = h.total_invested || (h.quantity * h.avg_buy_price);
-        const pnl = currentValue - invested;
-        const returnPct = invested > 0 ? ((pnl / invested) * 100) : 0;
+        const pnl = (h.unrealized_pnl !== undefined && h.unrealized_pnl !== null)
+            ? h.unrealized_pnl
+            : (currentValue - invested);
+        const returnPct = (h.unrealized_pnl_pct !== undefined && h.unrealized_pnl_pct !== null)
+            ? h.unrealized_pnl_pct
+            : (invested > 0 ? ((pnl / invested) * 100) : 0);
         const isPositive = pnl >= 0;
 
         return `

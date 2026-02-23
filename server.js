@@ -20,23 +20,6 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 
 const app = express()
 
-/* ---------- PORTFOLIO ANALYSIS API PROXY ---------- */
-/* Must be BEFORE express.json() so the raw body stream is forwarded intact */
-app.use('/pa-api', createProxyMiddleware({
-  target: 'http://localhost:8005',
-  changeOrigin: true,
-  pathRewrite: { '^/': '/api/' },
-  onError: (err, req, res) => {
-    console.error('Portfolio API Proxy Error:', err.message)
-    res.status(502).json({
-      error: 'Portfolio Analysis Engine is not running',
-      detail: 'Start the FastAPI server: uvicorn portfolio_app:app --port 8005'
-    })
-  }
-}))
-
-app.use(express.json())
-
 /* ---------- DATABASE ---------- */
 const pool = new Pool({
   user: "postgres",
@@ -72,7 +55,42 @@ app.use(session({
   }
 }))
 
-/* Proxy moved above express.json() — see line 23 */
+/* ---------- PORTFOLIO ANALYSIS API PROXY ---------- */
+/* Keep proxy before express.json() so the raw body stream is forwarded intact */
+app.use('/pa-api', (req, res, next) => {
+  if (!req.session || !req.session.user_id) {
+    return res.status(401).json({ message: "Unauthorized" })
+  }
+  const userId = String(req.session.user_id)
+  req.headers['x-user-id'] = userId
+
+  // Fallback for environments where proxy header hooks are not applied.
+  if (!req.url.includes('user_id=')) {
+    const separator = req.url.includes('?') ? '&' : '?'
+    req.url = `${req.url}${separator}user_id=${encodeURIComponent(userId)}`
+  }
+  next()
+})
+
+app.use('/pa-api', createProxyMiddleware({
+  target: 'http://localhost:8005',
+  changeOrigin: true,
+  pathRewrite: { '^/': '/api/' },
+  onProxyReq: (proxyReq, req) => {
+    if (req.session?.user_id) {
+      proxyReq.setHeader('x-user-id', String(req.session.user_id))
+    }
+  },
+  onError: (err, req, res) => {
+    console.error('Portfolio API Proxy Error:', err.message)
+    res.status(502).json({
+      error: 'Portfolio Analysis Engine is not running',
+      detail: 'Start the FastAPI server: uvicorn portfolio_app:app --port 8005'
+    })
+  }
+}))
+
+app.use(express.json())
 
 /* ---------- STATIC FILES ---------- */
 app.use(express.static(path.join(__dirname, "public")))
@@ -88,6 +106,227 @@ const transporter = nodemailer.createTransport({
 
 /* ---------- MULTER CONFIG ---------- */
 const upload = multer({ storage: multer.memoryStorage() })
+
+/* ---------- AUTH VALIDATION HELPERS ---------- */
+const NAME_REGEX = /^[A-Za-z]+(?:[ '.-][A-Za-z]+)*$/
+const EMAIL_REGEX = /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/
+const PASSWORD_ALLOWED_SPECIALS = "!@#$%^&*"
+const PASSWORD_ALLOWED_REGEX = /^[A-Za-z0-9!@#$%^&*]+$/
+
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase()
+}
+
+function normalizeName(name) {
+  return String(name || "").trim().replace(/\s+/g, " ")
+}
+
+function validateName(name) {
+  if (!name) return "Name is required"
+  if (name.length < 3 || name.length > 50) {
+    return "Name must be between 3 and 50 characters"
+  }
+  if (!NAME_REGEX.test(name)) {
+    return "Name can only include letters, spaces, apostrophes, periods, and hyphens"
+  }
+  return null
+}
+
+function validateEmail(email) {
+  if (!email) return "Email is required"
+  if (email.length > 254 || !EMAIL_REGEX.test(email)) {
+    return "Please enter a valid email address"
+  }
+  return null
+}
+
+function validatePassword(password) {
+  const value = String(password || "")
+
+  if (value.length < 8 || value.length > 64) {
+    return "Password must be 8 to 64 characters long"
+  }
+
+  if (!PASSWORD_ALLOWED_REGEX.test(value)) {
+    return `Password can only include letters, numbers, and these special characters: ${PASSWORD_ALLOWED_SPECIALS}`
+  }
+
+  const hasRequiredMix =
+    /[a-z]/.test(value) &&
+    /[A-Z]/.test(value) &&
+    /\d/.test(value) &&
+    /[!@#$%^&*]/.test(value)
+
+  if (!hasRequiredMix) {
+    return `Password must include uppercase, lowercase, a number, and a special character (${PASSWORD_ALLOWED_SPECIALS})`
+  }
+
+  return null
+}
+
+const INCOME_RANGE_TO_MONTHLY_INR = {
+  1: 20000,
+  2: 50000,
+  3: 100000,
+  4: 150000
+}
+
+const SAVINGS_BUCKET_TO_RATIO = {
+  1: 0.08,
+  2: 0.15,
+  3: 0.25,
+  4: 0.35
+}
+
+const TIME_HORIZON_TO_YEARS = {
+  1: 3,
+  2: 5,
+  3: 10,
+  4: 15
+}
+
+const GOAL_MONTH_MULTIPLIER = {
+  "Emergency savings": 18,
+  "Education": 48,
+  "House": 72,
+  "Retirement": 120,
+  "Wealth": 60
+}
+
+const RISK_TO_PROFIT_BUFFER = {
+  1: 0.05,
+  2: 0.08,
+  3: 0.10,
+  4: 0.12
+}
+
+const RISK_TO_PREFERENCE = {
+  1: "low",
+  2: "low",
+  3: "moderate",
+  4: "high"
+}
+
+const DEFAULT_SYMBOL_PRICES = {
+  AAPL: 180,
+  AMZN: 170,
+  GOOGL: 165,
+  JNJ: 160,
+  KO: 60,
+  MSFT: 420,
+  NVDA: 900,
+  PG: 160,
+  TSLA: 200
+}
+
+function annualIncomeFromRange(value) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric) || numeric <= 0) return 0
+
+  if (numeric <= 4) {
+    const monthly = INCOME_RANGE_TO_MONTHLY_INR[Math.round(numeric)] || INCOME_RANGE_TO_MONTHLY_INR[1]
+    return monthly * 12
+  }
+
+  return numeric
+}
+
+function savingsRatioFromBucket(value) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric) || numeric <= 0) return 0.10
+
+  if (numeric <= 4) {
+    return SAVINGS_BUCKET_TO_RATIO[Math.round(numeric)] || 0.10
+  }
+
+  if (numeric <= 1) return numeric
+  if (numeric <= 100) return numeric / 100
+  return 0.10
+}
+
+function riskStyleFromLabel(value) {
+  const numericRiskStyleMap = {
+    1: 0.25,
+    2: 0.40,
+    3: 0.60,
+    4: 0.90
+  }
+
+  const numeric = Number(value)
+  if (Number.isFinite(numeric)) {
+    return numericRiskStyleMap[Math.max(1, Math.min(4, Math.round(numeric)))] || 0.60
+  }
+
+  const text = String(value || "").trim().toLowerCase()
+  if (text === "low") return 0.25
+  if (text === "conservative") return 0.40
+  if (text === "balanced" || text === "moderate") return 0.60
+  if (text === "aggressive" || text === "high") return 0.90
+  return 0.60
+}
+
+function getInitialAllocationByRisk(riskLabel) {
+  const risk = Number(riskLabel)
+
+  if (risk <= 2) {
+    return [
+      { symbol: "KO", stock_name: "Coca-Cola", weight: 0.34 },
+      { symbol: "JNJ", stock_name: "Johnson & Johnson", weight: 0.33 },
+      { symbol: "PG", stock_name: "Procter & Gamble", weight: 0.33 }
+    ]
+  }
+
+  if (risk === 3) {
+    return [
+      { symbol: "AAPL", stock_name: "Apple Inc.", weight: 0.30 },
+      { symbol: "MSFT", stock_name: "Microsoft Corp.", weight: 0.30 },
+      { symbol: "GOOGL", stock_name: "Alphabet Inc.", weight: 0.20 },
+      { symbol: "AMZN", stock_name: "Amazon.com Inc.", weight: 0.20 }
+    ]
+  }
+
+  return [
+    { symbol: "NVDA", stock_name: "NVIDIA Corp.", weight: 0.30 },
+    { symbol: "TSLA", stock_name: "Tesla Inc.", weight: 0.25 },
+    { symbol: "AMZN", stock_name: "Amazon.com Inc.", weight: 0.20 },
+    { symbol: "AAPL", stock_name: "Apple Inc.", weight: 0.15 },
+    { symbol: "MSFT", stock_name: "Microsoft Corp.", weight: 0.10 }
+  ]
+}
+
+function buildInitialGoalFromQuestionnaire({
+  annual_income_range,
+  savings_percent,
+  risk_label,
+  goal,
+  time_horizon
+}) {
+  const monthlyIncome = INCOME_RANGE_TO_MONTHLY_INR[annual_income_range] || INCOME_RANGE_TO_MONTHLY_INR[1]
+  const savingsRatio = SAVINGS_BUCKET_TO_RATIO[savings_percent] || SAVINGS_BUCKET_TO_RATIO[1]
+  const years = TIME_HORIZON_TO_YEARS[time_horizon] || TIME_HORIZON_TO_YEARS[2]
+  const goalMonths = GOAL_MONTH_MULTIPLIER[goal] || GOAL_MONTH_MULTIPLIER["Wealth"]
+
+  const monthlySavings = monthlyIncome * savingsRatio
+  const initialInvestment = Math.max(5000, Math.round(monthlySavings * 3))
+  const targetAmount = Math.max(50000, Math.round(monthlySavings * goalMonths * (years / 5)))
+  const profitBuffer = RISK_TO_PROFIT_BUFFER[risk_label] ?? 0.10
+  const targetValue = Math.round(targetAmount * (1 + profitBuffer))
+
+  const deadline = new Date()
+  deadline.setFullYear(deadline.getFullYear() + years)
+
+  return {
+    name: `${goal} Goal`,
+    description: `Auto-created from onboarding questionnaire`,
+    targetAmount,
+    profitBuffer,
+    targetValue,
+    initialInvestment,
+    deadlineIso: deadline.toISOString().slice(0, 10),
+    riskPreference: RISK_TO_PREFERENCE[risk_label] || "moderate",
+    allocations: getInitialAllocationByRisk(risk_label)
+  }
+}
 
 /* =========================================
     AUTH ROUTES
@@ -127,10 +366,11 @@ app.get("/auth/check", async (req, res) => {
 app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body
+    const normalizedEmail = normalizeEmail(email)
 
     const result = await pool.query(
-      `SELECT id, password, consent_given, questionnaire_completed FROM newusers WHERE email=$1`,
-      [email]
+      `SELECT id, password, consent_given, questionnaire_completed FROM newusers WHERE LOWER(email)=LOWER($1)`,
+      [normalizedEmail]
     )
 
     if (!result.rows.length)
@@ -163,11 +403,25 @@ app.post("/login", async (req, res) => {
 app.post("/register", async (req, res) => {
   try {
     const { name, email, password } = req.body
+    const normalizedName = normalizeName(name)
+    const normalizedEmail = normalizeEmail(email)
 
-    if (!name || !email || !password)
-      return res.status(400).json({ message: "All fields required" })
+    const nameError = validateName(normalizedName)
+    if (nameError) {
+      return res.status(400).json({ message: nameError })
+    }
 
-    const exists = await pool.query("SELECT id FROM newusers WHERE email=$1", [email])
+    const emailError = validateEmail(normalizedEmail)
+    if (emailError) {
+      return res.status(400).json({ message: emailError })
+    }
+
+    const passwordError = validatePassword(password)
+    if (passwordError) {
+      return res.status(400).json({ message: passwordError })
+    }
+
+    const exists = await pool.query("SELECT id FROM newusers WHERE LOWER(email)=LOWER($1)", [normalizedEmail])
 
     if (exists.rows.length)
       return res.status(400).json({ message: "Email already registered" })
@@ -178,7 +432,7 @@ app.post("/register", async (req, res) => {
       `INSERT INTO newusers (name, email, password, consent_given, questionnaire_completed)
        VALUES ($1, $2, $3, FALSE, FALSE)
        RETURNING id`,
-      [name, email, hashed]
+      [normalizedName, normalizedEmail, hashed]
     )
 
     req.session.user_id = result.rows[0].id
@@ -250,12 +504,20 @@ app.post("/settings/update-profile", async (req, res) => {
     }
 
     const { email, dob, country, occupation, annual_income_range } = req.body
+    const normalizedEmail = email ? normalizeEmail(email) : null
+
+    if (normalizedEmail) {
+      const emailError = validateEmail(normalizedEmail)
+      if (emailError) {
+        return res.status(400).json({ message: emailError })
+      }
+    }
 
     await pool.query(
       `UPDATE newusers
        SET email=$1, dob=$2, country=$3, occupation=$4, annual_income_range=$5
        WHERE id=$6`,
-      [email || null, dob || null, country || null, occupation || null, annual_income_range || null, req.session.user_id]
+      [normalizedEmail || null, dob || null, country || null, occupation || null, annual_income_range || null, req.session.user_id]
     )
 
     res.json({ message: "Profile updated successfully" })
@@ -380,6 +642,9 @@ app.get("/guard/questionnaire", (req, res) => {
 app.post("/survey", async (req, res) => {
   if (!req.session.user_id) return res.status(401).json({ message: "Unauthorized" })
 
+  const client = await pool.connect()
+  let txStarted = false
+
   try {
     const {
       age_group, occupation, income_range, savings_percent,
@@ -388,7 +653,94 @@ app.post("/survey", async (req, res) => {
       goal, time_horizon, risk_label
     } = req.body
 
-    await pool.query(
+    const toInt = (value, fallback = null) => {
+      const parsed = Number.parseInt(value, 10)
+      return Number.isFinite(parsed) ? parsed : fallback
+    }
+
+    const toRiskLabelInt = (value) => {
+      const numeric = toInt(value, null)
+      if (numeric !== null) return Math.max(1, Math.min(4, numeric))
+
+      const text = String(value || "").trim().toLowerCase()
+      if (["low", "very low"].includes(text)) return 1
+      if (["conservative", "low-medium", "low medium"].includes(text)) return 2
+      if (["balanced", "moderate", "medium"].includes(text)) return 3
+      if (["aggressive", "high"].includes(text)) return 4
+      return null
+    }
+
+    const parsedPayload = {
+      age_group: toInt(age_group),
+      occupation: String(occupation || "").trim(),
+      annual_income_range: toInt(income_range),
+      savings_percent: toInt(savings_percent),
+      investment_experience: toInt(investment_experience),
+      instruments_used_count: toInt(instruments_used_count, 0),
+      financial_comfort: toInt(financial_comfort),
+      loss_reaction: toInt(loss_reaction),
+      return_priority: toInt(return_priority),
+      volatility_comfort: toInt(volatility_comfort),
+      goal: String(goal || "").trim(),
+      time_horizon: toInt(time_horizon),
+      risk_label: toRiskLabelInt(risk_label)
+    }
+
+    const requiredNumericFields = [
+      "age_group",
+      "annual_income_range",
+      "savings_percent",
+      "investment_experience",
+      "financial_comfort",
+      "loss_reaction",
+      "return_priority",
+      "volatility_comfort",
+      "time_horizon",
+      "risk_label"
+    ]
+
+    for (const key of requiredNumericFields) {
+      if (!Number.isInteger(parsedPayload[key])) {
+        return res.status(400).json({ message: `Invalid survey field: ${key}` })
+      }
+    }
+
+    if (!parsedPayload.occupation) {
+      return res.status(400).json({ message: "Invalid survey field: occupation" })
+    }
+    if (!parsedPayload.goal) {
+      return res.status(400).json({ message: "Invalid survey field: goal" })
+    }
+
+    await client.query("BEGIN")
+    txStarted = true
+
+    await client.query(
+      `INSERT INTO questionnaire_responses
+       (user_id, age_group, occupation, income_range, savings_percent,
+        investment_experience, instruments_used_count, financial_comfort,
+        loss_reaction, return_priority, volatility_comfort, goal, time_horizon, risk_label)
+       VALUES
+       ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+      [
+        req.session.user_id,
+        parsedPayload.age_group,
+        parsedPayload.occupation,
+        parsedPayload.annual_income_range,
+        parsedPayload.savings_percent,
+        parsedPayload.investment_experience,
+        parsedPayload.instruments_used_count,
+        parsedPayload.financial_comfort,
+        parsedPayload.loss_reaction,
+        parsedPayload.return_priority,
+        parsedPayload.volatility_comfort,
+        parsedPayload.goal,
+        parsedPayload.time_horizon,
+        parsedPayload.risk_label
+      ]
+    )
+
+    await client.query(
       `UPDATE newusers 
        SET age_group=$1, occupation=$2, annual_income_range=$3, savings_percent=$4, 
            investment_experience=$5, instruments_used_count=$6, financial_comfort=$7,
@@ -396,19 +748,161 @@ app.post("/survey", async (req, res) => {
            goal=$11, time_horizon=$12, risk_label=$13, questionnaire_completed=TRUE 
        WHERE id=$14`,
       [
-        age_group, occupation, income_range, savings_percent,
-        investment_experience, instruments_used_count, financial_comfort,
-        loss_reaction, return_priority, volatility_comfort,
-        goal, time_horizon, risk_label,
+        parsedPayload.age_group, parsedPayload.occupation, parsedPayload.annual_income_range, parsedPayload.savings_percent,
+        parsedPayload.investment_experience, parsedPayload.instruments_used_count, parsedPayload.financial_comfort,
+        parsedPayload.loss_reaction, parsedPayload.return_priority, parsedPayload.volatility_comfort,
+        parsedPayload.goal, parsedPayload.time_horizon, parsedPayload.risk_label,
         req.session.user_id
       ]
     )
 
+    const paUserLookup = await client.query(
+      "SELECT id FROM pa_users WHERE pg_user_id = $1 ORDER BY id ASC LIMIT 1",
+      [req.session.user_id]
+    )
+
+    let paUserId = paUserLookup.rows[0]?.id
+
+    if (!paUserId) {
+      const paUsername = `pa_user_${req.session.user_id}`
+      const paEmail = `pa_user_${req.session.user_id}@local.invalid`
+
+      const createdPaUser = await client.query(
+        `INSERT INTO pa_users (username, email, pg_user_id)
+         VALUES ($1, $2, $3)
+         RETURNING id`,
+        [paUsername, paEmail, req.session.user_id]
+      )
+      paUserId = createdPaUser.rows[0].id
+    }
+
+    const existingGoal = await client.query(
+      "SELECT id FROM pa_goals WHERE user_id = $1 ORDER BY id ASC LIMIT 1",
+      [paUserId]
+    )
+
+    if (!existingGoal.rows.length) {
+      const initialPlan = buildInitialGoalFromQuestionnaire(parsedPayload)
+
+      const goalInsert = await client.query(
+        `INSERT INTO pa_goals
+         (user_id, name, description, target_amount, profit_buffer, target_value,
+          initial_investment, deadline, risk_preference, status)
+         VALUES
+         ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active')
+         RETURNING id`,
+        [
+          paUserId,
+          initialPlan.name,
+          initialPlan.description,
+          initialPlan.targetAmount,
+          initialPlan.profitBuffer,
+          initialPlan.targetValue,
+          initialPlan.initialInvestment,
+          initialPlan.deadlineIso,
+          initialPlan.riskPreference
+        ]
+      )
+
+      const goalId = goalInsert.rows[0].id
+
+      for (const allocation of initialPlan.allocations) {
+        const cachedPrice = await client.query(
+          `SELECT close
+           FROM pa_stock_prices
+           WHERE symbol = $1
+           ORDER BY date DESC
+           LIMIT 1`,
+          [allocation.symbol]
+        )
+
+        const marketPrice = Number(cachedPrice.rows[0]?.close ?? DEFAULT_SYMBOL_PRICES[allocation.symbol] ?? 100)
+        if (!Number.isFinite(marketPrice) || marketPrice <= 0) continue
+
+        const targetAmount = initialPlan.initialInvestment * allocation.weight
+        const quantity = Math.max(1, Math.floor(targetAmount / marketPrice))
+        const totalInvested = Number((quantity * marketPrice).toFixed(2))
+
+        await client.query(
+          `INSERT INTO pa_holdings
+           (goal_id, stock_symbol, stock_name, quantity, avg_buy_price, total_invested)
+           VALUES
+           ($1, $2, $3, $4, $5, $6)`,
+          [goalId, allocation.symbol, allocation.stock_name, quantity, marketPrice, totalInvested]
+        )
+
+        await client.query(
+          `INSERT INTO pa_transactions
+           (goal_id, stock_symbol, stock_name, transaction_type, quantity, price, total_value,
+            transaction_date, validated, validation_message, notes)
+           VALUES
+           ($1, $2, $3, 'BUY', $4, $5, $6, CURRENT_DATE, TRUE, $7, $8)`,
+          [
+            goalId,
+            allocation.symbol,
+            allocation.stock_name,
+            quantity,
+            marketPrice,
+            totalInvested,
+            "Initialized from onboarding",
+            "Initial questionnaire-based allocation"
+          ]
+        )
+      }
+    }
+
+    await client.query("COMMIT")
+    txStarted = false
+
     req.session.questionnaire_completed = true
     res.json({ message: "Survey saved" })
   } catch (err) {
+    if (txStarted) {
+      try {
+        await client.query("ROLLBACK")
+      } catch (_) { }
+    }
     console.error("SURVEY ERROR:", err)
     res.status(500).json({ message: "Error saving survey" })
+  } finally {
+    client.release()
+  }
+})
+
+app.get("/api/user-survey-profile", async (req, res) => {
+  if (!req.session.user_id) return res.status(401).json({ message: "Unauthorized" })
+
+  try {
+    const result = await pool.query(
+      `SELECT age_group, occupation, annual_income_range, savings_percent, goal, time_horizon, risk_label, questionnaire_completed
+       FROM newusers
+       WHERE id = $1`,
+      [req.session.user_id]
+    )
+
+    if (!result.rows.length) {
+      return res.status(404).json({ message: "User not found" })
+    }
+
+    const user = result.rows[0]
+    const annualIncome = annualIncomeFromRange(user.annual_income_range)
+    const savingsRatio = savingsRatioFromBucket(user.savings_percent)
+
+    res.json({
+      questionnaire_completed: !!user.questionnaire_completed,
+      age_group: user.age_group,
+      occupation: user.occupation,
+      annual_income_range: user.annual_income_range,
+      annual_income_estimate: annualIncome,
+      savings_percent: user.savings_percent,
+      savings_ratio: Number(savingsRatio.toFixed(4)),
+      risk_label: user.risk_label,
+      goal: user.goal,
+      time_horizon: user.time_horizon
+    })
+  } catch (err) {
+    console.error("SURVEY PROFILE ERROR:", err)
+    res.status(500).json({ message: "Failed to load survey profile" })
   }
 })
 
@@ -419,19 +913,25 @@ app.post("/survey", async (req, res) => {
 app.post("/password/request-otp", async (req, res) => {
   try {
     const { email } = req.body
-    if (!email) return res.status(400).json({ message: "Email required" })
+    const normalizedEmail = normalizeEmail(email)
 
-    const result = await pool.query("SELECT id FROM newusers WHERE email=$1", [email])
+    if (!normalizedEmail) return res.status(400).json({ message: "Email required" })
+    const emailError = validateEmail(normalizedEmail)
+    if (emailError) return res.status(400).json({ message: emailError })
+
+    const result = await pool.query("SELECT id, email FROM newusers WHERE LOWER(email)=LOWER($1)", [normalizedEmail])
     if (!result.rows.length) return res.status(400).json({ message: "Email not found" })
+
+    const accountEmail = result.rows[0].email
 
     const otp = crypto.randomInt(100000, 999999).toString()
 
     req.session.password_reset_otp = otp
-    req.session.password_reset_email = email
+    req.session.password_reset_email = accountEmail
     req.session.password_reset_expires = Date.now() + 5 * 60 * 1000
 
     await transporter.sendMail({
-      to: email,
+      to: accountEmail,
       subject: "Password Change OTP",
       text: `Your OTP is ${otp}. Valid for 5 minutes.`
     })
@@ -469,8 +969,9 @@ app.post("/password/change", async (req, res) => {
 
     const { newPassword } = req.body
 
-    if (!newPassword || newPassword.length < 8) {
-      return res.status(400).json({ message: "Password too weak" })
+    const passwordError = validatePassword(newPassword)
+    if (passwordError) {
+      return res.status(400).json({ message: passwordError })
     }
 
     const hashed = await bcrypt.hash(newPassword, 10)
@@ -931,7 +1432,30 @@ app.post("/api/get-recommendations", async (req, res) => {
   if (!req.session.user_id) return res.status(401).json({ message: "Unauthorized" })
 
   try {
-    const pythonRes = await axios.post("http://localhost:8001/recommend", req.body)
+    const userResult = await pool.query(
+      `SELECT occupation, annual_income_range, savings_percent, risk_label, goal, time_horizon
+       FROM newusers
+       WHERE id = $1`,
+      [req.session.user_id]
+    )
+    const user = userResult.rows[0] || {}
+
+    const profileContext = {
+      occupation: user.occupation || "Other",
+      annual_income_estimate: annualIncomeFromRange(user.annual_income_range),
+      savings_ratio: savingsRatioFromBucket(user.savings_percent),
+      risk_label: Number(user.risk_label) || 3,
+      primary_goal: user.goal || "Wealth",
+      time_horizon: Number(user.time_horizon) || 2
+    }
+
+    const payload = {
+      ...req.body,
+      user_id: req.session.user_id,
+      user_profile: profileContext
+    }
+
+    const pythonRes = await axios.post("http://localhost:8001/recommend", payload)
     res.json(pythonRes.data)
   } catch (err) {
     console.error("ML Stock API Error:", err.message)
@@ -1042,7 +1566,7 @@ app.get("/api/habit-goalconflict", async (req, res) => {
         [req.session.user_id]
       ),
       pool.query(
-        `SELECT annual_income_range, savings_percent
+        `SELECT annual_income_range, savings_percent, occupation, risk_label, goal, time_horizon
          FROM newusers
          WHERE id = $1`,
         [req.session.user_id]
@@ -1113,10 +1637,10 @@ app.get("/api/habit-goalconflict", async (req, res) => {
     const dominantCategory = Array.from(categorySpend.entries())
       .sort((a, b) => b[1] - a[1])[0]?.[0] || "shopping"
 
-    const annualIncome = Number(user.annual_income_range || 0)
-    const savingsPercent = Number(user.savings_percent || 0)
-    const monthlySavingsCapacity = annualIncome > 0 && savingsPercent > 0
-      ? (annualIncome * (savingsPercent / 100)) / 12
+    const annualIncome = annualIncomeFromRange(user.annual_income_range)
+    const savingsRatio = savingsRatioFromBucket(user.savings_percent)
+    const monthlySavingsCapacity = annualIncome > 0 && savingsRatio > 0
+      ? (annualIncome * savingsRatio) / 12
       : 0
 
     const activeGoals = goals.map((g) => ({
@@ -1140,10 +1664,36 @@ app.get("/api/habit-goalconflict", async (req, res) => {
       transaction_amount: Number(latest.amount.toFixed(2)),
       transaction_hour: 20,
       monthly_savings_capacity: Number(monthlySavingsCapacity.toFixed(2)),
-      active_goals: activeGoals
+      active_goals: activeGoals,
+      profile_context: {
+        occupation: user.occupation || "Other",
+        risk_label: Number(user.risk_label || 3),
+        primary_goal: user.goal || "Wealth",
+        time_horizon: Number(user.time_horizon || 2)
+      }
     }
 
-    const response = await axios.post("http://localhost:8006/habits/analyze", payload)
+    const habitEngineTargets = [
+      "http://localhost:8006/habits/analyze",
+      "http://localhost:8002/habits/analyze"
+    ]
+
+    let response = null
+    let lastError = null
+
+    for (const target of habitEngineTargets) {
+      try {
+        response = await axios.post(target, payload, { timeout: 4000 })
+        if (response?.data) break
+      } catch (engineError) {
+        lastError = engineError
+      }
+    }
+
+    if (!response?.data) {
+      throw lastError || new Error("Habit goal-conflict service did not respond")
+    }
+
     return res.json({
       source: "habit_goalconflict_airanking",
       input_snapshot: payload,
@@ -1153,7 +1703,8 @@ app.get("/api/habit-goalconflict", async (req, res) => {
     const detail = err.response?.data || err.message
     return res.status(500).json({
       message: "Habit Goal-Conflict Engine Offline",
-      detail
+      detail,
+      expected_ports: [8006, 8002]
     })
   }
 })
@@ -1188,23 +1739,14 @@ app.post("/api/assess-goal-feasibility", async (req, res) => {
     )
     const user = userResult.rows[0] || {}
 
-    // Map database values to AI-compatible numbers
-    const savingsMap = {
-      "Less than 10%": 0.05,
-      "10-20%": 0.15,
-      "20-30%": 0.25,
-      "More than 30%": 0.35
-    }
-    const styleMap = {
-      "Conservative": 0.3,
-      "Balanced": 0.6,
-      "Aggressive": 0.9
-    }
+    const annualIncome = annualIncomeFromRange(user.annual_income_range)
+    const savingsRatio = savingsRatioFromBucket(user.savings_percent)
+    const investmentStyle = riskStyleFromLabel(user.risk_label)
 
     const aiProfile = {
-      income: 35000,
-      savings_ratio: savingsMap[user.savings_percent] || 0.1,
-      investment_style: styleMap[user.risk_label] || 0.6,
+      income: annualIncome > 0 ? annualIncome : 420000,
+      savings_ratio: savingsRatio,
+      investment_style: investmentStyle,
       monthly_capacity: Number.isFinite(monthlyInvestment) && monthlyInvestment > 0 ? monthlyInvestment : 5000,
       goal_amount: targetAmount,
       timeline_months: durationMonths

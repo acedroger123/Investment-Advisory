@@ -11,12 +11,17 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
-<body>
+<body class="app-shell sidebar-theme-dark">
   <!-- Navigation -->
   <nav class="navbar">
-    <div class="nav-brand">
-      <span class="brand-icon">📈</span>
-      <span class="brand-text">AI Wealth</span>
+    <div class="sidebar-header">
+      <div class="nav-brand">
+        <span class="brand-icon">📈</span>
+        <span class="brand-text">AI Wealth</span>
+      </div>
+      <button class="sidebar-toggle" type="button" data-sidebar-toggle aria-label="Collapse sidebar" aria-expanded="true">
+        <span class="sidebar-toggle-icon">></span>
+      </button>
     </div>
     <div class="nav-links">
       <a href="dashboard.html" class="nav-link active">Dashboard</a>
@@ -93,6 +98,41 @@
       </div>
     </section>
 
+    <section class="data-section profile-context-section">
+      <div class="data-card survey-profile-card">
+        <div class="card-header survey-profile-header">
+          <h3>Investor Profile (Used by AI)</h3>
+          <span class="badge badge-info profile-live-badge">Live Context</span>
+        </div>
+        <div id="surveyProfileSummary" class="survey-profile-summary">
+          Loading your survey profile...
+        </div>
+      </div>
+    </section>
+
+    <!-- Expense Intelligence -->
+    <section class="charts-section expense-intelligence-section">
+      <div class="chart-container">
+        <div class="chart-header">
+          <h3>Spending Trends</h3>
+        </div>
+        <div class="chart-wrapper">
+          <canvas id="spendingTrendChart"></canvas>
+          <div id="spendingTrendEmpty" class="chart-empty-state hidden">Add expenses to view spending trends.</div>
+        </div>
+        <div id="expenseBehaviorMessage" class="expense-behavior-banner">AI: Loading behavioral analysis...</div>
+      </div>
+      <div class="chart-container">
+        <div class="chart-header">
+          <h3>Expense Breakdown</h3>
+        </div>
+        <div class="chart-wrapper pie-wrapper">
+          <canvas id="expenseBreakdownChart"></canvas>
+          <div id="expenseBreakdownEmpty" class="chart-empty-state hidden">Add expenses to view category mix.</div>
+        </div>
+      </div>
+    </section>
+
     <!-- Main Charts Section -->
     <section class="charts-section">
       <div class="chart-container">
@@ -163,7 +203,7 @@
     </section>
 
     <!-- Holdings & Recommendations -->
-    <section class="data-section">
+    <section class="data-section recommendation-conflict-section">
 
       <div class="data-card">
         <div class="card-header">
@@ -257,6 +297,7 @@
       guarantee returns.</p>
   </footer>
 
+  <script src="js/layout.js"></script>
   <script src="js/api.js"></script>
   <script src="js/charts.js"></script>
   <script src="js/dashboard.js"></script>

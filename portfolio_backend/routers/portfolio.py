@@ -8,6 +8,7 @@ from typing import List, Optional
 
 from portfolio_backend.database import get_db
 from portfolio_backend.database.models import Goal
+from portfolio_backend.auth import get_current_pg_user_id, get_goal_for_pg_user
 from portfolio_backend.services.portfolio_service import PortfolioService
 
 router = APIRouter(prefix="/portfolio", tags=["Portfolio"])
@@ -18,9 +19,13 @@ router = APIRouter(prefix="/portfolio", tags=["Portfolio"])
 # ==========================================
 
 @router.get("/{goal_id}", response_model=dict)
-async def get_portfolio(goal_id: int, db: Session = Depends(get_db)):
+async def get_portfolio(
+    goal_id: int,
+    pg_user_id: int = Depends(get_current_pg_user_id),
+    db: Session = Depends(get_db)
+):
     """Get portfolio for a specific goal."""
-    goal = db.query(Goal).filter(Goal.id == goal_id).first()
+    goal = get_goal_for_pg_user(db, goal_id, pg_user_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
     
@@ -39,9 +44,13 @@ async def get_portfolio(goal_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{goal_id}/holdings", response_model=List[dict])
-async def get_holdings(goal_id: int, db: Session = Depends(get_db)):
+async def get_holdings(
+    goal_id: int,
+    pg_user_id: int = Depends(get_current_pg_user_id),
+    db: Session = Depends(get_db)
+):
     """Get current holdings for a specific goal."""
-    goal = db.query(Goal).filter(Goal.id == goal_id).first()
+    goal = get_goal_for_pg_user(db, goal_id, pg_user_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
     
@@ -49,9 +58,13 @@ async def get_holdings(goal_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{goal_id}/value", response_model=dict)
-async def get_portfolio_value(goal_id: int, db: Session = Depends(get_db)):
+async def get_portfolio_value(
+    goal_id: int,
+    pg_user_id: int = Depends(get_current_pg_user_id),
+    db: Session = Depends(get_db)
+):
     """Get current portfolio value and goal progress metrics."""
-    goal = db.query(Goal).filter(Goal.id == goal_id).first()
+    goal = get_goal_for_pg_user(db, goal_id, pg_user_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
     
@@ -59,9 +72,13 @@ async def get_portfolio_value(goal_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{goal_id}/allocation", response_model=List[dict])
-async def get_allocation(goal_id: int, db: Session = Depends(get_db)):
+async def get_allocation(
+    goal_id: int,
+    pg_user_id: int = Depends(get_current_pg_user_id),
+    db: Session = Depends(get_db)
+):
     """Get asset allocation breakdown for a specific goal."""
-    goal = db.query(Goal).filter(Goal.id == goal_id).first()
+    goal = get_goal_for_pg_user(db, goal_id, pg_user_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
     
@@ -69,9 +86,14 @@ async def get_allocation(goal_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{goal_id}/history", response_model=List[dict])
-async def get_history(goal_id: int, days: int = 30, db: Session = Depends(get_db)):
+async def get_history(
+    goal_id: int,
+    days: int = 30,
+    pg_user_id: int = Depends(get_current_pg_user_id),
+    db: Session = Depends(get_db)
+):
     """Get portfolio value history for charting."""
-    goal = db.query(Goal).filter(Goal.id == goal_id).first()
+    goal = get_goal_for_pg_user(db, goal_id, pg_user_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
     
@@ -79,9 +101,14 @@ async def get_history(goal_id: int, days: int = 30, db: Session = Depends(get_db
 
 
 @router.get("/{goal_id}/drawdown", response_model=dict)
-async def get_drawdown(goal_id: int, days: int = 90, db: Session = Depends(get_db)):
+async def get_drawdown(
+    goal_id: int,
+    days: int = 90,
+    pg_user_id: int = Depends(get_current_pg_user_id),
+    db: Session = Depends(get_db)
+):
     """Get drawdown metrics and data for risk visualization."""
-    goal = db.query(Goal).filter(Goal.id == goal_id).first()
+    goal = get_goal_for_pg_user(db, goal_id, pg_user_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
     
@@ -89,9 +116,13 @@ async def get_drawdown(goal_id: int, days: int = 90, db: Session = Depends(get_d
 
 
 @router.get("/{goal_id}/risk", response_model=dict)
-async def get_risk_metrics(goal_id: int, db: Session = Depends(get_db)):
+async def get_risk_metrics(
+    goal_id: int,
+    pg_user_id: int = Depends(get_current_pg_user_id),
+    db: Session = Depends(get_db)
+):
     """Get risk exposure metrics including volatility and Sharpe ratio."""
-    goal = db.query(Goal).filter(Goal.id == goal_id).first()
+    goal = get_goal_for_pg_user(db, goal_id, pg_user_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
     
@@ -99,9 +130,13 @@ async def get_risk_metrics(goal_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{goal_id}/performance", response_model=dict)
-async def get_performance(goal_id: int, db: Session = Depends(get_db)):
+async def get_performance(
+    goal_id: int,
+    pg_user_id: int = Depends(get_current_pg_user_id),
+    db: Session = Depends(get_db)
+):
     """Get portfolio performance metrics."""
-    goal = db.query(Goal).filter(Goal.id == goal_id).first()
+    goal = get_goal_for_pg_user(db, goal_id, pg_user_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
     
@@ -109,9 +144,13 @@ async def get_performance(goal_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{goal_id}/required-growth", response_model=dict)
-async def get_required_growth(goal_id: int, db: Session = Depends(get_db)):
+async def get_required_growth(
+    goal_id: int,
+    pg_user_id: int = Depends(get_current_pg_user_id),
+    db: Session = Depends(get_db)
+):
     """Get required vs actual growth data for dual-line chart."""
-    goal = db.query(Goal).filter(Goal.id == goal_id).first()
+    goal = get_goal_for_pg_user(db, goal_id, pg_user_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
     

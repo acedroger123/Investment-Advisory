@@ -20,5 +20,9 @@ start "GOAL_API" cmd /k "uvicorn goal_api:app --port 8004"
 echo 📈 Opening Portfolio Analysis Engine...
 start "PORTFOLIO_ANALYSIS" cmd /k "uvicorn portfolio_app:app --port 8005"
 
+echo 📈 Opening Habit_recommendation Analysis Engine...
+start "HABIT_RECOMENDATION_API" cmd /k "uvicorn habit_recomendation_api:app --port 8006"
+
+
 echo ✅ All windows opened. Check each for errors.
 pause

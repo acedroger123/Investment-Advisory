@@ -2,6 +2,7 @@
 Stress Testing Service - Simulates adverse market scenarios.
 """
 from datetime import date
+import math
 from typing import Dict, List
 from sqlalchemy.orm import Session
 
@@ -41,15 +42,28 @@ class StressTestingService:
             gap = target_value - stressed_value
             
             # Estimate additional days needed
-            if days_remaining > 0 and current_value > 0:
-                daily_growth = (target_value / current_value) ** (1/days_remaining) - 1
+            delay = 0
+            if (
+                days_remaining > 0
+                and current_value > 0
+                and stressed_value > 0
+                and target_value > 0
+            ):
+                # Derive daily growth required for the original timeline.
+                growth_factor = (target_value / current_value) ** (1 / days_remaining)
+                daily_growth = growth_factor - 1
+
                 if daily_growth > 0:
-                    new_days = int((target_value / stressed_value) ** (1/daily_growth) if daily_growth else 0)
-                    delay = max(0, new_days - days_remaining)
-                else:
-                    delay = 0
-            else:
-                delay = 0
+                    ratio_after_stress = target_value / stressed_value
+                    if ratio_after_stress > 1:
+                        # Numerically stable equivalent of solving:
+                        # stressed_value * (1 + daily_growth)^n = target_value
+                        base = 1 + daily_growth
+                        if base > 1:
+                            required_days = math.log(ratio_after_stress) / math.log(base)
+                            if math.isfinite(required_days):
+                                new_days = int(math.ceil(required_days))
+                                delay = max(0, new_days - days_remaining)
             
             results.append({
                 "scenario": scenario['name'],

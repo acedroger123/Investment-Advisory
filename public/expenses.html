@@ -11,12 +11,17 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 
-<body>
+<body class="app-shell sidebar-theme-dark">
   <!-- Navigation -->
   <nav class="navbar">
-    <div class="nav-brand">
-      <span class="brand-icon">📈</span>
-      <span class="brand-text">AI Wealth</span>
+    <div class="sidebar-header">
+      <div class="nav-brand">
+        <span class="brand-icon">📈</span>
+        <span class="brand-text">AI Wealth</span>
+      </div>
+      <button class="sidebar-toggle" type="button" data-sidebar-toggle aria-label="Collapse sidebar" aria-expanded="true">
+        <span class="sidebar-toggle-icon">></span>
+      </button>
     </div>
     <div class="nav-links">
       <a href="dashboard.html" class="nav-link">Dashboard</a>
@@ -101,16 +106,15 @@
         <div class="card-header">
           <h3>✨ AI Insights</h3>
         </div>
-        <div id="ai-insights-container" style="display: flex; flex-direction: column; gap: 15px;">
-          <p style="font-size: 0.9rem; color: var(--text-muted);">Log more expenses to generate AI insights.
-          </p>
+        <div id="ai-insights-container" class="expense-ai-insights">
+          <p class="expense-insight-empty">Log more expenses to generate AI insights.</p>
         </div>
       </div>
       <div class="data-card">
         <div class="card-header">
           <h3>🔍 Habit Detection</h3>
         </div>
-        <p id="habitText" style="font-size: 0.9rem; color: var(--text-muted);">No patterns detected yet.</p>
+        <div id="habitText" class="expense-habit-detection">No patterns detected yet.</div>
       </div>
     </section>
   </main>
@@ -173,6 +177,7 @@
   </footer>
 
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="js/layout.js"></script>
   <script src="expenses.js"></script>
   <script>
     if (window.lucide) lucide.createIcons();

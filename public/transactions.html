@@ -9,11 +9,16 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 
-<body>
+<body class="app-shell sidebar-theme-dark">
     <nav class="navbar">
-        <div class="nav-brand">
-            <span class="brand-icon">📈</span>
-            <span class="brand-text">AI Wealth</span>
+        <div class="sidebar-header">
+            <div class="nav-brand">
+                <span class="brand-icon">📈</span>
+                <span class="brand-text">AI Wealth</span>
+            </div>
+            <button class="sidebar-toggle" type="button" data-sidebar-toggle aria-label="Collapse sidebar" aria-expanded="true">
+                <span class="sidebar-toggle-icon">></span>
+            </button>
         </div>
         <div class="nav-links">
             <a href="dashboard.html" class="nav-link">Dashboard</a>
@@ -149,6 +154,7 @@
         <p>⚠️ <strong>Disclaimer:</strong> This is an educational system. It does not provide financial advice.</p>
     </footer>
 
+    <script src="js/layout.js"></script>
     <script src="js/api.js"></script>
     <script src="js/transactions.js"></script>
 </body>

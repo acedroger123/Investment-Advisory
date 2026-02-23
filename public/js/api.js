@@ -252,6 +252,21 @@ const InsightsAPI = {
     },
 };
 
+const UserProfileAPI = {
+    async getSurveyProfile() {
+        const response = await fetch('/api/user-survey-profile', {
+            credentials: 'include',
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        return response.json();
+    },
+};
+
 /**
  * Utility Functions
  */
@@ -347,6 +362,7 @@ window.API = {
     Recommendations: RecommendationsAPI,
     Simulation: SimulationAPI,
     Insights: InsightsAPI,
+    UserProfile: UserProfileAPI,
 };
 
 window.formatCurrency = formatCurrency;

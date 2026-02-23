@@ -43,7 +43,7 @@
             <label for="name">Full Name</label>
             <div class="input-wrapper">
               <i data-lucide="user" class="input-icon" size="18"></i>
-              <input type="text" id="name" placeholder="Aditya Gupta" required>
+              <input type="text" id="name" placeholder="Aditya Gupta" minlength="3" maxlength="50" required>
             </div>
             <small class="error" id="nameError"></small>
           </div>
@@ -52,7 +52,7 @@
             <label for="email">Email Address</label>
             <div class="input-wrapper">
               <i data-lucide="mail" class="input-icon" size="18"></i>
-              <input type="email" id="email" placeholder="name@example.com" required>
+              <input type="email" id="email" placeholder="name@example.com" maxlength="254" required>
             </div>
             <small class="error" id="emailError"></small>
           </div>
@@ -61,7 +61,7 @@
             <label for="password">Password</label>
             <div class="input-wrapper">
               <i data-lucide="lock" class="input-icon" size="18"></i>
-              <input type="password" id="password" placeholder="Create password" required>
+              <input type="password" id="password" placeholder="Create password" minlength="8" maxlength="64" required>
               <button type="button" class="toggle-password" onclick="toggle('password')">Show</button>
             </div>
             <small class="error" id="passwordError"></small>
@@ -71,7 +71,7 @@
             <label for="confirmPassword">Confirm Password</label>
             <div class="input-wrapper">
               <i data-lucide="lock" class="input-icon" size="18"></i>
-              <input type="password" id="confirmPassword" placeholder="Confirm password" required>
+              <input type="password" id="confirmPassword" placeholder="Confirm password" minlength="8" maxlength="64" required>
               <button type="button" class="toggle-password" onclick="toggle('confirmPassword')">Show</button>
             </div>
             <small class="error" id="confirmPasswordError"></small>

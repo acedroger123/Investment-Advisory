@@ -1,119 +1,137 @@
 document.addEventListener("DOMContentLoaded", async () => {
-  const stockContainer = document.getElementById("aiStockPicks");
-  const behavioralContainer = document.getElementById("behavioralAdvice");
-  const riskBadge = document.getElementById("userRiskBadge");
+  const form = document.getElementById("questionnaireForm");
+  const steps = Array.from(document.querySelectorAll(".step"));
+  const progressSteps = Array.from(document.querySelectorAll(".progress-step"));
 
-  /* ---------- 1. FETCH USER PROFILE & RISK ---------- */
-  async function loadUserContext() {
+  if (!form || steps.length === 0) return;
+
+  let currentStep = 0;
+  const submitBtn = form.querySelector('button[type="submit"]');
+  const submitBtnDefaultText = submitBtn ? submitBtn.textContent : "Submit & Finish";
+
+  function showStep(index) {
+    currentStep = Math.max(0, Math.min(index, steps.length - 1));
+
+    steps.forEach((step, idx) => {
+      step.classList.toggle("active", idx === currentStep);
+    });
+
+    progressSteps.forEach((step, idx) => {
+      step.classList.toggle("active", idx === currentStep);
+      step.classList.toggle("completed", idx < currentStep);
+    });
+  }
+
+  function toInt(id, fallback = 0) {
+    const value = Number.parseInt(document.getElementById(id)?.value ?? "", 10);
+    return Number.isFinite(value) ? value : fallback;
+  }
+
+  function riskFromAnswers(payload) {
+    const score =
+      (payload.loss_reaction +
+        payload.return_priority +
+        payload.volatility_comfort +
+        payload.financial_comfort +
+        payload.investment_experience) / 5;
+
+    if (score >= 3.5) return 4; // Aggressive
+    if (score >= 2.8) return 3; // Moderate
+    if (score >= 2.0) return 2; // Conservative
+    return 1; // Low
+  }
+
+  function buildPayload() {
+    const payload = {
+      age_group: toInt("age_group", 1),
+      occupation: document.getElementById("occupation")?.value || "Other",
+      income_range: toInt("income_range", 1),
+      savings_percent: toInt("savings_percent", 1),
+      investment_experience: toInt("investment_experience", 1),
+      instruments_used_count: toInt("instruments_used_count", 0),
+      financial_comfort: toInt("financial_comfort", 3),
+      loss_reaction: toInt("loss_reaction", 1),
+      return_priority: toInt("return_priority", 2),
+      volatility_comfort: toInt("volatility_comfort", 2),
+      goal: document.getElementById("goal")?.value || "Wealth",
+      time_horizon: toInt("time_horizon", 2)
+    };
+
+    payload.risk_label = riskFromAnswers(payload);
+    return payload;
+  }
+
+  async function guardQuestionnaireAccess() {
     try {
-      const res = await fetch("/auth/check", { credentials: "include" });
-      const user = await res.json();
-
-      if (!user.logged_in) {
+      const res = await fetch("/guard/questionnaire", { credentials: "include" });
+      if (!res.ok) {
         window.location.href = "SignIn.html";
-        return;
+        return false;
       }
 
-      // Display the risk level calculated in your questionnaire
-      const riskLevels = ["Low", "Conservative", "Moderate", "Aggressive"];
-      if (riskBadge) {
-        const label = riskLevels[user.risk_label] || "Moderate";
-        riskBadge.textContent = label;
-        riskBadge.className = `badge risk-${label.toLowerCase()}`;
+      const data = await res.json().catch(() => ({}));
+      if (!data.allowed) {
+        window.location.href = "SignIn.html";
+        return false;
       }
-
-      // 2. Fetch AI Recommendations based on this context
-      fetchAIAdvice(user);
+      return true;
     } catch (err) {
-      console.error("Context load failed:", err);
+      console.error("Questionnaire guard error:", err);
+      window.location.href = "SignIn.html";
+      return false;
     }
   }
 
-  /* ---------- 2. CALL PYTHON AI MODELS ---------- */
-  async function fetchAIAdvice(user) {
-    try {
-      // Map survey values to what the Python K-Means model expects
-      const payload = {
-        current_amount: 10000,
-        goal_amount: 50000,
-        years: user.time_horizon || 3,
-        risk_tolerance: user.risk_label >= 3 ? "high" : user.risk_label === 2 ? "medium" : "low"
-      };
+  window.nextStep = function nextStep() {
+    if (currentStep < steps.length - 1) showStep(currentStep + 1);
+  };
 
-      // Call the Recommendation API (Port 8001) via Node Bridge
-      const response = await fetch("/api/get-stock-recommendations", {
+  window.prevStep = function prevStep() {
+    if (currentStep > 0) showStep(currentStep - 1);
+  };
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const payload = buildPayload();
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Saving...";
+    }
+
+    try {
+      const res = await fetch("/survey", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(payload)
       });
 
-      const data = await response.json();
-      renderStocks(data.recommend);
-      renderBehavioral(user, data.logic_summary);
+      const data = await res.json().catch(() => ({}));
 
-    } catch (err) {
-      console.warn("AI Recommendation service offline. Run run_all.py");
-    }
-  }
-
-  /* ---------- 3. RENDER UI COMPONENTS ---------- */
-  function renderStocks(stocks) {
-    if (!stockContainer) return;
-    stockContainer.innerHTML = "";
-
-    stocks.slice(0, 4).forEach(stock => {
-      const div = document.createElement("div");
-      div.className = "card stock-card animate-fade-up";
-      div.innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div>
-            <h4 style="margin:0; font-size:1.1rem;">${stock.ticker}</h4>
-            <span style="font-size:0.75rem; color:var(--text-muted)">${stock.risks} Risk</span>
-          </div>
-          <div style="text-align:right;">
-            <div style="color:var(--color-accent-green); font-weight:700;">↗ ${(stock.annual_return * 100).toFixed(1)}%</div>
-            <div style="font-size:0.7rem; opacity:0.6;">Est. Yield</div>
-          </div>
-        </div>
-      `;
-      stockContainer.appendChild(div);
-    });
-  }
-
-  function renderBehavioral(user, logicSummary) {
-    if (!behavioralContainer) return;
-    behavioralContainer.innerHTML = "";
-
-    // Generate tips based on the Survey inputs
-    const tips = [
-      {
-        icon: "shield-check",
-        title: "Risk Alignment",
-        text: `Based on your ${user.financial_comfort}/5 comfort score, this portfolio focuses on ${user.risk_label >= 2 ? 'growth' : 'capital protection'}.`
-      },
-      {
-        icon: "calendar",
-        title: "Timeline Strategy",
-        text: `For your ${user.time_horizon}-year horizon, we've prioritized assets with high liquidity.`
+      if (!res.ok) {
+        if (res.status === 401) {
+          window.location.href = "SignIn.html";
+          return;
+        }
+        alert(data.message || "Failed to save questionnaire");
+        return;
       }
-    ];
 
-    tips.forEach(tip => {
-      const div = document.createElement("div");
-      div.className = "advice-item";
-      div.innerHTML = `
-        <div class="icon-box"><i data-lucide="${tip.icon}"></i></div>
-        <div>
-          <h5 style="margin:0 0 4px 0;">${tip.title}</h5>
-          <p style="margin:0; font-size:0.85rem; color:var(--text-muted);">${tip.text}</p>
-        </div>
-      `;
-      behavioralContainer.appendChild(div);
-    });
+      window.location.href = "dashboard.html";
+    } catch (err) {
+      console.error("Questionnaire submit error:", err);
+      alert("Server error. Please try again.");
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = submitBtnDefaultText;
+      }
+    }
+  });
 
-    if (window.lucide) lucide.createIcons();
-  }
-
-  // --- INITIALIZE ---
-  loadUserContext();
+  const allowed = await guardQuestionnaireAccess();
+  if (!allowed) return;
+  showStep(0);
 });

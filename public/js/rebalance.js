@@ -116,7 +116,7 @@ function renderPortfolioSummary(portfolio) {
     document.getElementById('totalInvested').textContent = formatCurrency(summary.total_invested || 0);
 
     const pnl = summary.total_unrealized_pnl || 0;
-    const pnlPct = summary.pnl_percentage || 0;
+    const pnlPct = summary.unrealized_pnl_percentage ?? summary.pnl_percentage ?? 0;
     const pnlEl = document.getElementById('unrealizedPnl');
     pnlEl.textContent = formatCurrency(pnl);
     pnlEl.style.color = pnl >= 0 ? 'var(--color-accent-green)' : 'var(--color-accent-red)';
