@@ -5,6 +5,7 @@
 let deleteGoalId = null;
 
 document.addEventListener('DOMContentLoaded', () => {
+    ensureFeasibilityPanel();
     loadGoals();
     setMinDeadlineDate();
 });
@@ -39,8 +40,7 @@ async function loadGoals() {
             return;
         }
 
-        const goalsWithFeasibility = await enrichGoalsWithFeasibility(goals);
-        grid.innerHTML = goalsWithFeasibility.map(goal => createGoalCard(goal)).join('');
+        grid.innerHTML = goals.map(goal => createGoalCard(goal)).join('');
 
     } catch (error) {
         console.error('Error loading goals:', error);
@@ -53,44 +53,12 @@ async function loadGoals() {
     }
 }
 
-async function enrichGoalsWithFeasibility(goals) {
-    if (!Array.isArray(goals) || goals.length === 0) return goals;
-
-    const results = await Promise.all(goals.map(async (goal) => {
-        try {
-            const payload = buildFeasibilityPayload(goal);
-            const feasibility = await API.Goals.assessFeasibility(payload);
-            return { ...goal, goal_feasibility: feasibility, goal_feasability: feasibility };
-        } catch (error) {
-            console.warn(`Feasibility unavailable for goal ${goal.id}:`, error.message);
-            return { ...goal, goal_feasibility: null, goal_feasability: null };
-        }
-    }));
-
-    return results;
-}
-
-function buildFeasibilityPayload(goal) {
-    const targetAmount = Number(goal.target_amount ?? goal.target_value ?? 0);
-
-    const daysRemaining = Number(goal.days_remaining);
-    let durationMonths = Number.isFinite(daysRemaining) ? Math.ceil(daysRemaining / 30) : null;
-
-    if (!durationMonths || durationMonths <= 0) {
-        const deadline = goal.deadline ? new Date(goal.deadline) : null;
-        if (deadline && !Number.isNaN(deadline.getTime())) {
-            const diffMs = deadline.getTime() - Date.now();
-            durationMonths = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24 * 30)));
-        } else {
-            durationMonths = 1;
-        }
-    }
-
-    return {
-        target_amount: targetAmount,
-        duration_months: durationMonths
-    };
-}
+// Risk benchmark data (mirrors backend RISK_BENCHMARKS)
+const RISK_BENCHMARKS_FRONTEND = {
+    low: { expected: 10, max: 12, color: '#10b981', label: 'Conservative' },
+    moderate: { expected: 14, max: 20, color: '#f59e0b', label: 'Balanced' },
+    high: { expected: 20, max: 30, color: '#ef4444', label: 'Aggressive' },
+};
 
 function createGoalCard(goal) {
     const progressColor = goal.progress >= 80 ? 'var(--color-accent-green)' :
@@ -100,19 +68,28 @@ function createGoalCard(goal) {
     const riskBadge = goal.risk_preference === 'high' ? 'badge-danger' :
         goal.risk_preference === 'moderate' ? 'badge-warning' : 'badge-success';
 
-    const feasibility = goal.goal_feasibility || goal.goal_feasability;
-    const feasibilityClass = getFeasibilityClass(feasibility?.feasibility);
-    const confidence = Number(feasibility?.confidence_score ?? 0);
-    const feasibilityText = feasibility
-        ? `${feasibility.feasibility} (${confidence.toFixed(1)}%)`
-        : 'Unavailable';
-    const feasibilityHint = feasibility?.explanation || 'Feasibility engine unavailable for this goal.';
+    const bench = RISK_BENCHMARKS_FRONTEND[goal.risk_preference] || RISK_BENCHMARKS_FRONTEND.moderate;
 
     return `
         <div class="goal-card" data-id="${goal.id}">
             <div class="goal-header">
                 <h3>${goal.name}</h3>
-                <span class="badge ${riskBadge}">${goal.risk_preference}</span>
+                <span class="badge ${riskBadge}">${bench.label}</span>
+            </div>
+
+            <div class="risk-strategy-bar" style="
+                background: rgba(0,0,0,0.2);
+                border-left: 3px solid ${bench.color};
+                border-radius: 6px;
+                padding: 7px 12px;
+                margin-bottom: 14px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                font-size: 0.8rem;
+            ">
+                <span style="color: var(--text-muted);">📈 Expected Annual Return</span>
+                <strong style="color: ${bench.color};">${bench.expected}% – ${bench.max}%</strong>
             </div>
             
             <div class="goal-progress">
@@ -124,7 +101,6 @@ function createGoalCard(goal) {
                     <div class="progress-fill" style="width: ${Math.min(goal.progress, 100)}%; background: ${progressColor};"></div>
                 </div>
             </div>
-            
             <div class="goal-stats">
                 <div class="goal-stat">
                     <span class="stat-label">Current Value</span>
@@ -139,12 +115,6 @@ function createGoalCard(goal) {
                     <span class="stat-value">${goal.days_remaining}</span>
                 </div>
             </div>
-
-            <div class="goal-feasibility ${feasibilityClass}">
-                <div class="goal-feasibility-title">Goal Feasibility</div>
-                <div class="goal-feasibility-value">${feasibilityText}</div>
-                <div class="goal-feasibility-hint">${feasibilityHint}</div>
-            </div>
             
             <div class="goal-actions">
                 <button class="btn btn-secondary btn-sm" onclick="editGoal(${goal.id})">Edit</button>
@@ -155,12 +125,6 @@ function createGoalCard(goal) {
     `;
 }
 
-function getFeasibilityClass(level) {
-    if (level === 'High') return 'feasibility-high';
-    if (level === 'Medium') return 'feasibility-medium';
-    if (level === 'Low') return 'feasibility-low';
-    return 'feasibility-unavailable';
-}
 
 async function saveGoal(event) {
     event.preventDefault();
@@ -193,6 +157,174 @@ async function saveGoal(event) {
     }
 }
 
+// ─── Feasibility ─────────────────────────────────────────────────────────────
+
+let _feasibilityTimer = null;
+
+function ensureFeasibilityPanel() {
+    const form = document.getElementById('goalForm');
+    if (!form || document.getElementById('feasibilityPanel')) return;
+
+    const panel = document.createElement('div');
+    panel.id = 'feasibilityPanel';
+    panel.style.display = 'none';
+
+    const actions = form.querySelector('.form-actions');
+    if (actions && actions.parentNode) {
+        actions.parentNode.insertBefore(panel, actions);
+    } else {
+        form.appendChild(panel);
+    }
+}
+
+function scheduleFeasibilityCheck() {
+    clearTimeout(_feasibilityTimer);
+    _feasibilityTimer = setTimeout(runFeasibilityCheck, 600);
+}
+
+async function runFeasibilityCheck() {
+    ensureFeasibilityPanel();
+    const panel = document.getElementById('feasibilityPanel');
+    if (!panel) return;
+
+    const targetVal = document.getElementById('targetAmountInput').value;
+    const bufferVal = document.getElementById('profitBuffer').value;
+    const deadline = document.getElementById('goalDeadline').value;
+    const risk = document.getElementById('riskPreference').value;
+
+    // Need at least target + deadline to check
+    if (!targetVal || !deadline) return;
+
+    const data = {
+        target_amount: parseFloat(targetVal),
+        profit_buffer: parseFloat(bufferVal || 10) / 100,
+        deadline: deadline,
+        risk_preference: risk,
+    };
+
+    panel.style.display = 'block';
+    panel.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;padding:8px 0;">Checking feasibility…</p>';
+
+    try {
+        const result = await API.Goals.checkFeasibility(data);
+        renderFeasibilityPanel(result);
+    } catch (err) {
+        panel.innerHTML = '';
+        panel.style.display = 'none';
+    }
+}
+
+function renderFeasibilityPanel(r) {
+    const level = r.feasibility_level; // "feasible" | "challenging" | "impossible"
+
+    const colors = {
+        feasible: { bg: 'rgba(16,185,129,0.1)', border: '#10b981', badge: '#10b981', icon: '🟢' },
+        challenging: { bg: 'rgba(245,158,11,0.1)', border: '#f59e0b', badge: '#f59e0b', icon: '🟡' },
+        impossible: { bg: 'rgba(239,68,68,0.1)', border: '#ef4444', badge: '#ef4444', icon: '🔴' },
+    };
+    const c = colors[level] || colors.impossible;
+
+    const optA = r.options?.option_a;
+    const optB = r.options?.option_b;
+    const optC = r.options?.option_c;
+
+    // Build option buttons only when not fully feasible
+    let optionHTML = '';
+    if (level !== 'feasible') {
+        optionHTML = `
+            <div class="feasibility-options">
+                <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:8px;">Suggested adjustments:</p>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                    ${optA ? `<button type="button" class="btn btn-secondary btn-sm" onclick="applyFeasibilityOption('a')"
+                        title="${optA.description}">📅 Extend by ${optA.extra_years} Year${optA.extra_years > 1 ? 's' : ''}</button>` : ''}
+                    ${optB ? `<button type="button" class="btn btn-secondary btn-sm" onclick="applyFeasibilityOption('b')"
+                        title="${optB.description}">💰 ${optB.label}</button>` : ''}
+                    ${optC && optC.available ? `<button type="button" class="btn btn-secondary btn-sm" onclick="applyFeasibilityOption('c')"
+                        title="${optC.description}">⚡ ${optC.label}</button>` : ''}
+                    <button type="button" class="btn btn-secondary btn-sm" style="opacity:0.6"
+                        onclick="dismissFeasibilityPanel()">Keep Anyway</button>
+                </div>
+            </div>`;
+    }
+
+    document.getElementById('feasibilityPanel').innerHTML = `
+        <div class="feasibility-panel" style="
+            background:${c.bg};
+            border:1px solid ${c.border};
+            border-radius:10px;
+            padding:14px 16px;
+            margin:12px 0;
+            animation: fadeIn 0.3s ease;
+        ">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                <span style="font-size:1rem;">${c.icon}</span>
+                <strong style="color:${c.badge};font-size:0.9rem;text-transform:capitalize;">
+                    Goal ${level === 'impossible' ? 'Not Feasible' : level.charAt(0).toUpperCase() + level.slice(1)}
+                </strong>
+            </div>
+            <p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px;">${r.summary}</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:${level !== 'feasible' ? '12px' : '0'};">
+                <div style="background:var(--glass-bg);border-radius:8px;padding:10px;text-align:center;">
+                    <span style="font-size:0.72rem;color:var(--text-muted);display:block;margin-bottom:3px;">Invest in Stocks Over Time</span>
+                    <strong style="font-size:1rem;color:var(--text-primary);">${formatCurrency(r.required_capital)}</strong>
+                </div>
+                <div style="background:var(--glass-bg);border-radius:8px;padding:10px;text-align:center;">
+                    <span style="font-size:0.72rem;color:var(--text-muted);display:block;margin-bottom:3px;">Profit Needed (from ₹0)</span>
+                    <strong style="font-size:1rem;color:var(--text-primary);">${formatCurrency(r.profit_needed)}</strong>
+                </div>
+            </div>
+            ${optionHTML}
+        </div>`;
+
+    // Store result globally for applyFeasibilityOption
+    window._lastFeasibilityResult = r;
+}
+
+function applyFeasibilityOption(opt) {
+    const r = window._lastFeasibilityResult;
+    if (!r) return;
+
+    if (opt === 'a' && r.options.option_a) {
+        document.getElementById('goalDeadline').value = r.options.option_a.new_deadline;
+        showToast(`Deadline updated to ${r.options.option_a.new_deadline}`, 'success');
+    } else if (opt === 'b' && r.options.option_b) {
+        document.getElementById('targetAmountInput').value =
+            Math.round(r.options.option_b.new_target_amount);
+        showToast(`Target updated to ${formatCurrency(r.options.option_b.new_target_amount)}`, 'success');
+    } else if (opt === 'c' && r.options.option_c) {
+        document.getElementById('riskPreference').value = r.options.option_c.new_risk;
+        showToast(`Risk level updated to ${r.options.option_c.new_risk}`, 'success');
+    }
+
+    // Re-run feasibility after applying
+    runFeasibilityCheck();
+}
+
+function dismissFeasibilityPanel() {
+    const panel = document.getElementById('feasibilityPanel');
+    if (panel) {
+        panel.innerHTML = '';
+        panel.style.display = 'none';
+    }
+}
+
+// Wire up feasibility triggers after DOM is ready
+function attachFeasibilityListeners() {
+    const fields = ['targetAmountInput', 'profitBuffer', 'goalDeadline', 'riskPreference'];
+    fields.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('change', scheduleFeasibilityCheck);
+            el.addEventListener('blur', scheduleFeasibilityCheck);
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    ensureFeasibilityPanel();
+    attachFeasibilityListeners();
+});
+
 async function editGoal(goalId) {
     try {
         const goal = await API.Goals.get(goalId);
@@ -209,6 +341,7 @@ async function editGoal(goalId) {
         document.getElementById('saveBtn').textContent = 'Update Goal';
 
         showModal('goalModal');
+        scheduleFeasibilityCheck();
 
     } catch (error) {
         showToast(`Error: ${error.message}`, 'error');
@@ -241,6 +374,8 @@ function resetForm() {
     document.getElementById('modalTitle').textContent = 'Create New Goal';
     document.getElementById('saveBtn').textContent = 'Save Goal';
     setMinDeadlineDate();
+    dismissFeasibilityPanel();
+    window._lastFeasibilityResult = null;
 }
 
 // Add styles for goal cards
@@ -319,49 +454,6 @@ style.textContent = `
     .goal-actions {
         display: flex;
         gap: var(--spacing-sm);
-    }
-
-    .goal-feasibility {
-        margin-bottom: var(--spacing-lg);
-        border-radius: var(--radius-md);
-        padding: var(--spacing-md);
-        border: 1px solid var(--glass-border);
-        background: var(--glass-bg);
-    }
-
-    .goal-feasibility-title {
-        font-size: var(--font-size-xs);
-        color: var(--text-muted);
-        margin-bottom: 4px;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-    }
-
-    .goal-feasibility-value {
-        font-size: var(--font-size-md);
-        font-weight: 700;
-        margin-bottom: 6px;
-    }
-
-    .goal-feasibility-hint {
-        font-size: var(--font-size-xs);
-        color: var(--text-secondary);
-        line-height: 1.45;
-    }
-
-    .feasibility-high {
-        border-color: rgba(16, 185, 129, 0.5);
-        background: rgba(16, 185, 129, 0.08);
-    }
-
-    .feasibility-medium {
-        border-color: rgba(245, 158, 11, 0.5);
-        background: rgba(245, 158, 11, 0.08);
-    }
-
-    .feasibility-low {
-        border-color: rgba(239, 68, 68, 0.5);
-        background: rgba(239, 68, 68, 0.08);
     }
     
     .goal-actions .btn {

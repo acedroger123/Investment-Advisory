@@ -178,47 +178,6 @@ const SAVINGS_BUCKET_TO_RATIO = {
   4: 0.35
 }
 
-const TIME_HORIZON_TO_YEARS = {
-  1: 3,
-  2: 5,
-  3: 10,
-  4: 15
-}
-
-const GOAL_MONTH_MULTIPLIER = {
-  "Emergency savings": 18,
-  "Education": 48,
-  "House": 72,
-  "Retirement": 120,
-  "Wealth": 60
-}
-
-const RISK_TO_PROFIT_BUFFER = {
-  1: 0.05,
-  2: 0.08,
-  3: 0.10,
-  4: 0.12
-}
-
-const RISK_TO_PREFERENCE = {
-  1: "low",
-  2: "low",
-  3: "moderate",
-  4: "high"
-}
-
-const DEFAULT_SYMBOL_PRICES = {
-  AAPL: 180,
-  AMZN: 170,
-  GOOGL: 165,
-  JNJ: 160,
-  KO: 60,
-  MSFT: 420,
-  NVDA: 900,
-  PG: 160,
-  TSLA: 200
-}
-
 function annualIncomeFromRange(value) {
   const numeric = Number(value)
   if (!Number.isFinite(numeric) || numeric <= 0) return 0
@@ -263,69 +222,6 @@ function riskStyleFromLabel(value) {
   if (text === "balanced" || text === "moderate") return 0.60
   if (text === "aggressive" || text === "high") return 0.90
   return 0.60
-}
-
-function getInitialAllocationByRisk(riskLabel) {
-  const risk = Number(riskLabel)
-
-  if (risk <= 2) {
-    return [
-      { symbol: "KO", stock_name: "Coca-Cola", weight: 0.34 },
-      { symbol: "JNJ", stock_name: "Johnson & Johnson", weight: 0.33 },
-      { symbol: "PG", stock_name: "Procter & Gamble", weight: 0.33 }
-    ]
-  }
-
-  if (risk === 3) {
-    return [
-      { symbol: "AAPL", stock_name: "Apple Inc.", weight: 0.30 },
-      { symbol: "MSFT", stock_name: "Microsoft Corp.", weight: 0.30 },
-      { symbol: "GOOGL", stock_name: "Alphabet Inc.", weight: 0.20 },
-      { symbol: "AMZN", stock_name: "Amazon.com Inc.", weight: 0.20 }
-    ]
-  }
-
-  return [
-    { symbol: "NVDA", stock_name: "NVIDIA Corp.", weight: 0.30 },
-    { symbol: "TSLA", stock_name: "Tesla Inc.", weight: 0.25 },
-    { symbol: "AMZN", stock_name: "Amazon.com Inc.", weight: 0.20 },
-    { symbol: "AAPL", stock_name: "Apple Inc.", weight: 0.15 },
-    { symbol: "MSFT", stock_name: "Microsoft Corp.", weight: 0.10 }
-  ]
-}
-
-function buildInitialGoalFromQuestionnaire({
-  annual_income_range,
-  savings_percent,
-  risk_label,
-  goal,
-  time_horizon
-}) {
-  const monthlyIncome = INCOME_RANGE_TO_MONTHLY_INR[annual_income_range] || INCOME_RANGE_TO_MONTHLY_INR[1]
-  const savingsRatio = SAVINGS_BUCKET_TO_RATIO[savings_percent] || SAVINGS_BUCKET_TO_RATIO[1]
-  const years = TIME_HORIZON_TO_YEARS[time_horizon] || TIME_HORIZON_TO_YEARS[2]
-  const goalMonths = GOAL_MONTH_MULTIPLIER[goal] || GOAL_MONTH_MULTIPLIER["Wealth"]
-
-  const monthlySavings = monthlyIncome * savingsRatio
-  const initialInvestment = Math.max(5000, Math.round(monthlySavings * 3))
-  const targetAmount = Math.max(50000, Math.round(monthlySavings * goalMonths * (years / 5)))
-  const profitBuffer = RISK_TO_PROFIT_BUFFER[risk_label] ?? 0.10
-  const targetValue = Math.round(targetAmount * (1 + profitBuffer))
-
-  const deadline = new Date()
-  deadline.setFullYear(deadline.getFullYear() + years)
-
-  return {
-    name: `${goal} Goal`,
-    description: `Auto-created from onboarding questionnaire`,
-    targetAmount,
-    profitBuffer,
-    targetValue,
-    initialInvestment,
-    deadlineIso: deadline.toISOString().slice(0, 10),
-    riskPreference: RISK_TO_PREFERENCE[risk_label] || "moderate",
-    allocations: getInitialAllocationByRisk(risk_label)
-  }
 }
 
 /* =========================================
@@ -755,101 +651,6 @@ app.post("/survey", async (req, res) => {
         req.session.user_id
       ]
     )
-
-    const paUserLookup = await client.query(
-      "SELECT id FROM pa_users WHERE pg_user_id = $1 ORDER BY id ASC LIMIT 1",
-      [req.session.user_id]
-    )
-
-    let paUserId = paUserLookup.rows[0]?.id
-
-    if (!paUserId) {
-      const paUsername = `pa_user_${req.session.user_id}`
-      const paEmail = `pa_user_${req.session.user_id}@local.invalid`
-
-      const createdPaUser = await client.query(
-        `INSERT INTO pa_users (username, email, pg_user_id)
-         VALUES ($1, $2, $3)
-         RETURNING id`,
-        [paUsername, paEmail, req.session.user_id]
-      )
-      paUserId = createdPaUser.rows[0].id
-    }
-
-    const existingGoal = await client.query(
-      "SELECT id FROM pa_goals WHERE user_id = $1 ORDER BY id ASC LIMIT 1",
-      [paUserId]
-    )
-
-    if (!existingGoal.rows.length) {
-      const initialPlan = buildInitialGoalFromQuestionnaire(parsedPayload)
-
-      const goalInsert = await client.query(
-        `INSERT INTO pa_goals
-         (user_id, name, description, target_amount, profit_buffer, target_value,
-          initial_investment, deadline, risk_preference, status)
-         VALUES
-         ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active')
-         RETURNING id`,
-        [
-          paUserId,
-          initialPlan.name,
-          initialPlan.description,
-          initialPlan.targetAmount,
-          initialPlan.profitBuffer,
-          initialPlan.targetValue,
-          initialPlan.initialInvestment,
-          initialPlan.deadlineIso,
-          initialPlan.riskPreference
-        ]
-      )
-
-      const goalId = goalInsert.rows[0].id
-
-      for (const allocation of initialPlan.allocations) {
-        const cachedPrice = await client.query(
-          `SELECT close
-           FROM pa_stock_prices
-           WHERE symbol = $1
-           ORDER BY date DESC
-           LIMIT 1`,
-          [allocation.symbol]
-        )
-
-        const marketPrice = Number(cachedPrice.rows[0]?.close ?? DEFAULT_SYMBOL_PRICES[allocation.symbol] ?? 100)
-        if (!Number.isFinite(marketPrice) || marketPrice <= 0) continue
-
-        const targetAmount = initialPlan.initialInvestment * allocation.weight
-        const quantity = Math.max(1, Math.floor(targetAmount / marketPrice))
-        const totalInvested = Number((quantity * marketPrice).toFixed(2))
-
-        await client.query(
-          `INSERT INTO pa_holdings
-           (goal_id, stock_symbol, stock_name, quantity, avg_buy_price, total_invested)
-           VALUES
-           ($1, $2, $3, $4, $5, $6)`,
-          [goalId, allocation.symbol, allocation.stock_name, quantity, marketPrice, totalInvested]
-        )
-
-        await client.query(
-          `INSERT INTO pa_transactions
-           (goal_id, stock_symbol, stock_name, transaction_type, quantity, price, total_value,
-            transaction_date, validated, validation_message, notes)
-           VALUES
-           ($1, $2, $3, 'BUY', $4, $5, $6, CURRENT_DATE, TRUE, $7, $8)`,
-          [
-            goalId,
-            allocation.symbol,
-            allocation.stock_name,
-            quantity,
-            marketPrice,
-            totalInvested,
-            "Initialized from onboarding",
-            "Initial questionnaire-based allocation"
-          ]
-        )
-      }
-    }
 
     await client.query("COMMIT")
     txStarted = false
@@ -1499,16 +1300,57 @@ app.get("/api/ai-analysis", async (req, res) => {
       expenses: expenses.rows
     })
 
+    const expenseRows = Array.isArray(expenses.rows) ? expenses.rows : []
+    const profile = pythonRes.data?.financial_profile || {}
+    const profileLabel = profile.profile_label || "Needs Attention"
+    const stabilityScore = Number(profile.stability_score || 0)
+
+    const categoryTotals = expenseRows.reduce((acc, row) => {
+      const category = row.category || "Other"
+      const amount = Number(row.amount || 0)
+      if (Number.isFinite(amount) && amount > 0) {
+        acc[category] = (acc[category] || 0) + amount
+      }
+      return acc
+    }, {})
+
+    const topCategoryEntry = Object.entries(categoryTotals)
+      .sort((a, b) => b[1] - a[1])[0]
+
+    const topCategory = topCategoryEntry ? topCategoryEntry[0] : "Discretionary"
+    const avgSpend = expenseRows.length > 0
+      ? expenseRows.reduce((sum, row) => sum + Number(row.amount || 0), 0) / expenseRows.length
+      : 0
+
+    const suggestions = [
+      {
+        category: "Financial Profile",
+        title: "Financial Profile: " + profileLabel,
+        text: `Your spending stability is ${stabilityScore.toFixed(1)}%. Maintain consistent weekly limits to improve reliability.`,
+        level: profileLabel === "Unstable" ? "High" : "Medium",
+        icon_name: "activity",
+        monetary_gain: "Risk Management"
+      },
+      {
+        category: "Cash Flow",
+        title: "Protect Monthly Savings First",
+        text: "Create a fixed auto-transfer on salary day so savings happen before discretionary expenses.",
+        level: "High",
+        icon_name: "piggy-bank",
+        monetary_gain: avgSpend > 0 ? `~₹${Math.round(avgSpend * 0.15).toLocaleString("en-IN")}/mo` : "Improved consistency"
+      },
+      {
+        category: "Expense Focus",
+        title: `Optimize ${topCategory} Spending`,
+        text: `Your highest spend concentration is in ${topCategory}. Apply a category cap and review weekly variance.`,
+        level: "Medium",
+        icon_name: "target",
+        monetary_gain: topCategoryEntry ? `Focus on ₹${Math.round(topCategoryEntry[1]).toLocaleString("en-IN")}` : "Category control"
+      }
+    ]
+
     res.json({
-      suggestions: [
-        {
-          title: "Financial Profile: " + pythonRes.data.financial_profile.profile_label,
-          text: `Your spending stability is ${pythonRes.data.financial_profile.stability_score}%.`,
-          level: pythonRes.data.financial_profile.profile_label === "Unstable" ? "High" : "Low",
-          icon_name: "activity",
-          monetary_gain: "Risk Management"
-        }
-      ]
+      suggestions
     })
   } catch (err) {
     res.status(500).json({ message: "Stability API Error" })
@@ -1694,10 +1536,61 @@ app.get("/api/habit-goalconflict", async (req, res) => {
       throw lastError || new Error("Habit goal-conflict service did not respond")
     }
 
+    const engineData = response.data || {}
+    const ranked = Array.isArray(engineData.ranked_recommendations)
+      ? [...engineData.ranked_recommendations]
+      : []
+
+    if (ranked.length > 0 && ranked.length < 3) {
+      const fallbackRanked = [
+        {
+          recommendation: "Create weekly discretionary caps and review every Sunday.",
+          score: 0.74,
+          score_tier: "High",
+          why_ranked: "Controls weekly leakage and improves spending consistency.",
+          impacts_goal: "Primary Goal",
+          feasibility_impact_pct: -8.0,
+          goal_success_probability_before: 62.0,
+          goal_success_probability_after: 73.0,
+          goal_timeline_reduction_months: 1.7,
+          difficulty_level: "Moderate",
+          technical_why: "Improves budget adherence and lowers variance."
+        },
+        {
+          recommendation: "Automate savings on payday before discretionary spending.",
+          score: 0.68,
+          score_tier: "Moderate",
+          why_ranked: "Locks in savings discipline and reduces goal slippage.",
+          impacts_goal: "Primary Goal",
+          feasibility_impact_pct: -6.5,
+          goal_success_probability_before: 62.0,
+          goal_success_probability_after: 70.0,
+          goal_timeline_reduction_months: 1.3,
+          difficulty_level: "Easy",
+          technical_why: "Improves fixed contribution consistency."
+        }
+      ]
+
+      const existing = new Set(
+        ranked.map((item) => String(item?.recommendation || "").trim().toLowerCase())
+      )
+      for (const template of fallbackRanked) {
+        const key = String(template.recommendation || "").trim().toLowerCase()
+        if (existing.has(key)) continue
+        ranked.push({
+          rank: ranked.length + 1,
+          ...template
+        })
+        existing.add(key)
+        if (ranked.length >= 3) break
+      }
+    }
+
     return res.json({
       source: "habit_goalconflict_airanking",
       input_snapshot: payload,
-      ...response.data
+      ...engineData,
+      ranked_recommendations: ranked
     })
   } catch (err) {
     const detail = err.response?.data || err.message

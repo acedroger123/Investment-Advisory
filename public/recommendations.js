@@ -42,6 +42,15 @@ document.addEventListener("DOMContentLoaded", () => {
       impact: "-₹5,000/mo",
       action: "Apply",
       icon: "wallet"
+    },
+    {
+      category: "Planning",
+      priority: "Medium",
+      title: "Automate Goal Contributions",
+      desc: "Set a fixed monthly auto-transfer so savings remain consistent regardless of spend variance.",
+      impact: "+Consistency",
+      action: "Apply",
+      icon: "calendar"
     }
   ];
 
@@ -329,6 +338,36 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  function ensureMinimumRankedRecommendations(recommendations, minCount = 3) {
+    const base = Array.isArray(recommendations) ? [...recommendations] : [];
+    if (base.length >= minCount) return base.slice(0, minCount);
+
+    const existing = new Set(base.map((r) => String(r?.recommendation || "").trim().toLowerCase()));
+    for (const fallback of FALLBACK_RANKED_RECOMMENDATIONS) {
+      const key = String(fallback.recommendation || "").trim().toLowerCase();
+      if (existing.has(key)) continue;
+      base.push({ ...fallback, rank: base.length + 1 });
+      existing.add(key);
+      if (base.length >= minCount) break;
+    }
+    return base.slice(0, minCount);
+  }
+
+  function ensureMinimumSimpleSuggestions(suggestions, minCount = 3) {
+    const base = Array.isArray(suggestions) ? [...suggestions] : [];
+    if (base.length >= minCount) return base.slice(0, minCount);
+
+    const existing = new Set(base.map((s) => String(s?.title || "").trim().toLowerCase()));
+    for (const fallback of FALLBACK_SIMPLE_RECS) {
+      const key = String(fallback.title || "").trim().toLowerCase();
+      if (existing.has(key)) continue;
+      base.push({ ...fallback });
+      existing.add(key);
+      if (base.length >= minCount) break;
+    }
+    return base.slice(0, minCount);
+  }
+
   function renderGuidance(aiGuidance, recommendations) {
     const guidance = aiGuidance || FALLBACK_GUIDANCE;
     const focus = guidance.primary_financial_focus_area || {};
@@ -480,9 +519,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const suggestions = Array.isArray(aiData?.suggestions) ? aiData.suggestions : [];
 
     if (ranked.length > 0) {
-      renderRankedRecommendations(ranked);
-      renderQuickWinsFromRanked(ranked, habitData?.ai_guidance?.impact_summary);
-      renderGuidance(habitData?.ai_guidance, ranked);
+      const rankedMinimum = ensureMinimumRankedRecommendations(ranked, 3);
+      renderRankedRecommendations(rankedMinimum);
+      renderQuickWinsFromRanked(rankedMinimum, habitData?.ai_guidance?.impact_summary);
+      renderGuidance(habitData?.ai_guidance, rankedMinimum);
       renderHabitInsights(habitData);
       statusText("Personalized recommendations updated.");
     } else {
@@ -496,9 +536,9 @@ document.addEventListener("DOMContentLoaded", () => {
           action: s.action_label || "View",
           icon: s.icon_name || "sparkles"
         }));
-        renderSuggestionCards(mapped);
+        renderSuggestionCards(ensureMinimumSimpleSuggestions(mapped, 3));
       } else {
-        renderSuggestionCards(FALLBACK_SIMPLE_RECS);
+        renderSuggestionCards(ensureMinimumSimpleSuggestions(FALLBACK_SIMPLE_RECS, 3));
       }
 
       renderQuickWinsFromRanked(FALLBACK_RANKED_RECOMMENDATIONS, FALLBACK_GUIDANCE.impact_summary);

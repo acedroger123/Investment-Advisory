@@ -179,12 +179,20 @@ function renderAllocationOverview(allocation, analysis) {
 
     if (!allocation || allocation.length === 0) return;
 
+    const rebalancing = analysisData?.rebalancing;
+    const maxSingle = rebalancing?.max_single_stock_weight ?? (100 / allocation.length);
     const numHoldings = allocation.length;
-    const targetWeight = (100 / numHoldings).toFixed(1);
+    const rawEqual = 100.0 / numHoldings;
+    const cappedEqual = Math.min(rawEqual, maxSingle);
     const targetAllocation = allocation.map(a => ({
         symbol: a.symbol,
-        weight: parseFloat(targetWeight)
+        weight: cappedEqual
     }));
+
+    const chartColors = [
+        '#6366f1', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b',
+        '#ef4444', '#a855f7', '#14b8a6', '#f97316', '#84cc16'
+    ];
 
     // Current allocation donut
     const ctx1 = document.getElementById('currentAllocChart');
@@ -195,10 +203,7 @@ function renderAllocationOverview(allocation, analysis) {
                 labels: allocation.map(a => a.symbol),
                 datasets: [{
                     data: allocation.map(a => a.weight),
-                    backgroundColor: Charts.COLORS ? [
-                        '#6366f1', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b',
-                        '#ef4444', '#a855f7', '#14b8a6', '#f97316', '#84cc16'
-                    ].slice(0, allocation.length) : [],
+                    backgroundColor: chartColors.slice(0, allocation.length),
                     borderColor: '#0f0f1a',
                     borderWidth: 2,
                 }]
@@ -224,10 +229,7 @@ function renderAllocationOverview(allocation, analysis) {
                 labels: targetAllocation.map(a => a.symbol),
                 datasets: [{
                     data: targetAllocation.map(a => a.weight),
-                    backgroundColor: [
-                        '#6366f1', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b',
-                        '#ef4444', '#a855f7', '#14b8a6', '#f97316', '#84cc16'
-                    ].slice(0, targetAllocation.length),
+                    backgroundColor: chartColors.slice(0, targetAllocation.length),
                     borderColor: '#0f0f1a',
                     borderWidth: 2,
                 }]
@@ -281,7 +283,6 @@ function renderRiskIndicator(metrics) {
 
 function renderDriftDetails(rebalancing) {
     const tbody = document.getElementById('driftBody');
-    const suggestions = rebalancing.suggestions || [];
     const allocation = analysisData?.portfolio?.allocation || [];
 
     if (allocation.length === 0) {
@@ -289,8 +290,12 @@ function renderDriftDetails(rebalancing) {
         return;
     }
 
+    const maxSingle = rebalancing.max_single_stock_weight ?? (100 / allocation.length);
     const numHoldings = allocation.length;
-    const targetWeight = 100 / numHoldings;
+    const rawEqual = 100.0 / numHoldings;
+    const targetWeight = Math.min(rawEqual, maxSingle);
+    const driftThreshold = rebalancing.risk_preference === 'low' ? 4
+        : rebalancing.risk_preference === 'high' ? 8 : 5;
 
     tbody.innerHTML = allocation.map(asset => {
         const currentWeight = asset.weight || 0;
@@ -298,7 +303,7 @@ function renderDriftDetails(rebalancing) {
         const absDeviation = Math.abs(deviation);
 
         let status, statusClass;
-        if (absDeviation < 2) {
+        if (absDeviation < driftThreshold / 2) {
             status = 'Balanced';
             statusClass = 'balanced';
         } else if (deviation > 0) {
@@ -341,10 +346,10 @@ function renderRecommendations(analysis) {
 
     container.innerHTML = recommendations.map(rec => `
         <div class="recommendation-item ${(rec.priority || 'moderate')}-priority">
-            <div class="rec-icon">${getRecIcon(rec.type)}</div>
+            <div class="rec-icon">${getRecIcon(rec.type || rec.action)}</div>
             <div class="rec-content">
                 <span class="rec-action">${rec.action || rec.type || 'Recommendation'}</span>
-                <p class="rec-text">${rec.detail || rec.description || rec.reason || ''}</p>
+                <p class="rec-text">${rec.detail || rec.description || rec.reason || rec.message || ''}</p>
                 ${rec.impact ? `<span class="rec-impact">Impact: ${rec.impact}</span>` : ''}
             </div>
         </div>
@@ -382,19 +387,36 @@ function renderIssues(analysis) {
 }
 
 function getIssueIcon(type) {
+    const key = (type || '').toLowerCase();
     const icons = {
-        'concentration': '⚠️', 'under_diversified': '📊', 'drift': '↔️',
-        'underweight': '⬇️', 'overweight': '⬆️', 'no_holdings': '📭', 'low_progress': '🎯'
+        concentration: '⚠️',
+        diversification: '📊',
+        drift: '↔️',
+        underweight: '⬇️',
+        overweight: '⬆️',
+        no_holdings: '📭',
+        low_progress: '🎯',
+        goal_progress: '🎯',
+        deadline: '⏳'
     };
-    return icons[type] || '⚠️';
+    return icons[key] || '⚠️';
 }
 
 function getRecIcon(type) {
+    const key = (type || '').toLowerCase();
     const icons = {
-        'buy': '🛒', 'sell': '💰', 'hold': '⏸️', 'rebalance': '⚖️',
-        'diversify': '🔀', 'reduce': '📉', 'increase': '📈'
+        buy: '🛒',
+        sell: '💰',
+        hold: '⏸️',
+        rebalance: '⚖️',
+        diversify: '🔀',
+        reduce: '📉',
+        increase: '📈',
+        invest_more: '📈',
+        extend_deadline: '📅',
+        aggressive_invest: '⚡'
     };
-    return icons[type] || '💡';
+    return icons[key] || '💡';
 }
 
 // ==========================================
@@ -405,8 +427,24 @@ function renderAdjustmentSuggestions(rebalancing) {
     const tbody = document.getElementById('adjustmentBody');
     const suggestions = rebalancing.suggestions || [];
     const strategy = rebalancing.target_strategy || 'Equal Weight';
+    const strategyDesc = rebalancing.strategy_description || '';
 
     document.getElementById('strategyBadge').textContent = strategy;
+    const badgeEl = document.getElementById('strategyBadge');
+    if (badgeEl) {
+        let descEl = document.getElementById('strategyDesc');
+        if (strategyDesc) {
+            if (!descEl) {
+                descEl = document.createElement('p');
+                descEl.id = 'strategyDesc';
+                descEl.style.cssText = 'font-size:0.78rem;color:var(--text-muted);margin-top:4px;';
+                badgeEl.parentNode.insertBefore(descEl, badgeEl.nextSibling);
+            }
+            descEl.textContent = strategyDesc;
+        } else if (descEl) {
+            descEl.remove();
+        }
+    }
 
     if (suggestions.length === 0) {
         tbody.innerHTML = `
@@ -422,7 +460,10 @@ function renderAdjustmentSuggestions(rebalancing) {
         return `
             <tr class="${action.toLowerCase()}-row">
                 <td><span class="action-badge ${action.toLowerCase()}">${action}</span></td>
-                <td><span class="symbol-badge">${s.symbol}</span></td>
+                <td>
+                    <span class="symbol-badge">${s.symbol}</span>
+                    ${s.reason ? `<div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">${s.reason}</div>` : ''}
+                </td>
                 <td>${(s.current_weight || 0).toFixed(1)}%</td>
                 <td>${(s.target_weight || 0).toFixed(1)}%</td>
                 <td>${s.quantity || '--'}</td>

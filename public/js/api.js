@@ -68,6 +68,13 @@ const GoalsAPI = {
         });
     },
 
+    async checkFeasibility(data) {
+        return apiRequest('/goals/check-feasibility', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    },
+
     async assessFeasibility(goalData) {
         const response = await fetch('/api/assess-goal-feasibility', {
             method: 'POST',
@@ -203,6 +210,10 @@ const RecommendationsAPI = {
 
     async getBuySuggestions(goalId) {
         return apiRequest(`/recommendations/${goalId}/buy-suggestions`);
+    },
+
+    async getSmartBuy(goalId) {
+        return apiRequest(`/recommendations/${goalId}/smart-buy`);
     },
 
     async getAlerts(goalId) {

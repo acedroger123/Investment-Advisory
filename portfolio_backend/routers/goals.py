@@ -15,6 +15,7 @@ from portfolio_backend.auth import (
     get_goal_for_pg_user
 )
 from portfolio_backend.services.portfolio_service import PortfolioService
+from portfolio_backend.services.goal_feasibility import check_feasibility
 
 router = APIRouter(prefix="/goals", tags=["Goals"])
 
@@ -28,6 +29,14 @@ class GoalCreate(BaseModel):
     deadline: date
     risk_preference: str = Field(default="moderate", pattern="^(low|moderate|high)$")
     initial_investment: float = Field(default=0, ge=0)
+
+
+class FeasibilityCheck(BaseModel):
+    """Schema for feasibility check endpoint."""
+    target_amount: float = Field(..., gt=0)
+    profit_buffer: float = Field(default=0.10, ge=0, le=0.5)
+    deadline: date
+    risk_preference: str = Field(default="moderate", pattern="^(low|moderate|high)$")
 
 
 class GoalUpdate(BaseModel):
@@ -56,6 +65,26 @@ class GoalResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+@router.post("/check-feasibility", response_model=dict)
+async def check_goal_feasibility(
+    data: FeasibilityCheck,
+    pg_user_id: int = Depends(get_current_pg_user_id)
+):
+    """Check whether a goal setup is feasible before saving."""
+    if data.deadline <= date.today():
+        raise HTTPException(
+            status_code=400,
+            detail="Deadline must be in the future"
+        )
+
+    return check_feasibility(
+        target_amount=data.target_amount,
+        profit_buffer=data.profit_buffer,
+        deadline=data.deadline,
+        risk_preference=data.risk_preference,
+    )
 
 
 @router.post("", response_model=dict, status_code=status.HTTP_201_CREATED)
@@ -90,6 +119,13 @@ async def create_goal(
     db.add(db_goal)
     db.commit()
     db.refresh(db_goal)
+
+    feasibility = check_feasibility(
+        target_amount=goal.target_amount,
+        profit_buffer=goal.profit_buffer,
+        deadline=goal.deadline,
+        risk_preference=goal.risk_preference,
+    )
     
     return {
         "message": "Goal created successfully",
@@ -100,7 +136,8 @@ async def create_goal(
             "target_value": db_goal.target_value,
             "deadline": db_goal.deadline.isoformat(),
             "risk_preference": db_goal.risk_preference
-        }
+        },
+        "feasibility": feasibility,
     }
 
 

@@ -9,6 +9,195 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const hlContainer = document.getElementById("highlightsContainer");
   const goalContainer = document.getElementById("goalsProgressContainer");
+  const reviewSubtitle = document.querySelector(".page-header .subtitle");
+  const rateChangeEl = document.getElementById("rateChange");
+
+  const INCOME_RANGE_LABELS = {
+    1: "Below ₹20,000/month",
+    2: "₹20,000 - ₹50,000/month",
+    3: "₹50,000 - ₹1,00,000/month",
+    4: "Above ₹1,00,000/month"
+  };
+
+  const INCOME_RANGE_ESTIMATED_MONTHLY = {
+    1: 20000,
+    2: 35000,
+    3: 75000,
+    4: 120000
+  };
+
+  const SAVINGS_BUCKET_TO_RATIO = {
+    1: 0.08,
+    2: 0.15,
+    3: 0.25,
+    4: 0.35
+  };
+
+
+  function toValidDate(value) {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  function updateReviewSubtitle(referenceDate) {
+    if (!reviewSubtitle) return;
+    const d = toValidDate(referenceDate);
+    if (!d) return;
+    reviewSubtitle.textContent = `📅 ${d.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}`;
+  }
+
+  function pickLatestMonthExpenses(expenses) {
+    const normalized = (Array.isArray(expenses) ? expenses : [])
+      .map((e) => {
+        const d = toValidDate(e.date);
+        const amount = Number(e.amount || 0);
+        if (!d || !Number.isFinite(amount) || amount <= 0) return null;
+        return { ...e, amount, _date: d };
+      })
+      .filter(Boolean);
+
+    if (normalized.length === 0) return [];
+
+    normalized.sort((a, b) => b._date.getTime() - a._date.getTime());
+    const latest = normalized[0]._date;
+    const month = latest.getMonth();
+    const year = latest.getFullYear();
+
+    const monthExpenses = normalized.filter((e) => e._date.getMonth() === month && e._date.getFullYear() === year);
+    updateReviewSubtitle(latest);
+    return monthExpenses;
+  }
+
+  function buildBreakdownFromExpenses(expenses) {
+    const byCategory = {};
+    expenses.forEach((e) => {
+      const category = e.category || "Other";
+      byCategory[category] = (byCategory[category] || 0) + Number(e.amount || 0);
+    });
+
+    return Object.entries(byCategory)
+      .map(([category, total]) => ({ category, total: Number(total.toFixed(2)) }))
+      .sort((a, b) => b.total - a.total);
+  }
+
+  function buildWeeklyFromExpenses(expenses) {
+    const byDay = new Array(7).fill(0);
+    expenses.forEach((e) => {
+      const idx = e._date?.getDay();
+      if (Number.isInteger(idx) && idx >= 0 && idx <= 6) {
+        byDay[idx] += Number(e.amount || 0);
+      }
+    });
+
+    return byDay
+      .map((total, day_idx) => ({ day_idx, total: Number(total.toFixed(2)) }))
+      .filter((row) => row.total > 0);
+  }
+
+  function normalizeSavingsRatio(surveyProfile) {
+    const ratio = Number(surveyProfile?.savings_ratio || 0);
+    if (Number.isFinite(ratio) && ratio > 0 && ratio <= 1) return ratio;
+
+    const bucket = Number(surveyProfile?.savings_percent || 0);
+    if (Number.isFinite(bucket) && bucket > 0 && bucket <= 4) {
+      return SAVINGS_BUCKET_TO_RATIO[Math.round(bucket)] || 0.10;
+    }
+
+    if (Number.isFinite(bucket) && bucket > 4 && bucket <= 100) {
+      return bucket / 100;
+    }
+
+    return 0.10;
+  }
+
+  function resolveIncomeContext(profile, surveyProfile) {
+    const defaultMonthly = 60000;
+    const bucketRaw = Number(surveyProfile?.annual_income_range ?? profile?.annual_income_range ?? 0);
+    const hasRangeSelection = Number.isFinite(bucketRaw) && bucketRaw >= 1 && bucketRaw <= 4;
+
+    const annualEstimate = Number(surveyProfile?.annual_income_estimate || 0);
+    let monthlyIncome = defaultMonthly;
+    let source = "default";
+
+    if (hasRangeSelection) {
+      monthlyIncome = INCOME_RANGE_ESTIMATED_MONTHLY[Math.round(bucketRaw)] || defaultMonthly;
+      source = "range_estimate";
+    } else if (Number.isFinite(bucketRaw) && bucketRaw > 4) {
+      monthlyIncome = bucketRaw / 12;
+      source = "exact_annual";
+    } else if (annualEstimate > 0) {
+      monthlyIncome = annualEstimate / 12;
+      source = "survey_annual_estimate";
+    }
+
+    const rangeLabel = hasRangeSelection
+      ? (INCOME_RANGE_LABELS[Math.round(bucketRaw)] || `Income range ${Math.round(bucketRaw)}`)
+      : "";
+
+    return {
+      monthlyIncome: Number.isFinite(monthlyIncome) && monthlyIncome > 0 ? monthlyIncome : defaultMonthly,
+      hasRangeSelection,
+      rangeLabel,
+      source
+    };
+  }
+
+  function ensureIncomeContextCard() {
+    let section = document.getElementById("incomeContextSection");
+    if (section) return section;
+
+    const statsGrid = document.querySelector(".stats-grid");
+    if (!statsGrid || !statsGrid.parentNode) return null;
+
+    section = document.createElement("section");
+    section.id = "incomeContextSection";
+    section.className = "data-section";
+    section.style.gridTemplateColumns = "1fr";
+    section.style.marginTop = "14px";
+    section.innerHTML = `
+      <div class="data-card" style="padding:14px 16px;">
+        <div id="incomeContextBody" style="display:flex; flex-direction:column; gap:10px;"></div>
+      </div>
+    `;
+
+    statsGrid.insertAdjacentElement("afterend", section);
+    return section;
+  }
+
+  function renderIncomeContextCard(incomeContext, savingsRatio, baselineSavings, dataConfidence) {
+    const section = ensureIncomeContextCard();
+    const body = section?.querySelector("#incomeContextBody");
+    if (!body) return;
+
+    const ratioPct = Math.round(savingsRatio * 100);
+    const confidencePct = Math.round(dataConfidence * 100);
+
+    if (incomeContext.hasRangeSelection) {
+      body.innerHTML = `
+        <div style="font-size:0.9rem; color: var(--text-secondary);">
+          Your income is currently based on questionnaire range: <strong>${incomeContext.rangeLabel}</strong>.
+          For accurate review metrics, update income from <strong>Settings</strong> after OTP verification.
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <a href="settings.html" class="btn btn-primary btn-sm" style="text-decoration:none;">Go to Settings</a>
+        </div>
+        <div style="font-size:0.82rem; color: var(--text-muted);">
+          Baseline savings shown using your declared savings habit (<strong>${ratioPct}%</strong>) = <strong>${formatCurrency(baselineSavings)}</strong>/month.
+          Live data confidence: <strong>${confidencePct}%</strong>.
+        </div>
+      `;
+      return;
+    }
+
+    body.innerHTML = `
+      <div style="font-size:0.9rem; color: var(--text-secondary);">
+        Using profile income and questionnaire savings habit.
+        <span style="display:block; font-size:0.82rem; color: var(--text-muted); margin-top:3px;">
+          Savings baseline = <strong>${ratioPct}%</strong> of income (${formatCurrency(baselineSavings)}/month). Live data confidence: <strong>${confidencePct}%</strong>.
+        </span>
+      </div>
+    `;
+  }
 
   // --- 1. FETCH REAL DATA FROM BACKEND ---
   async function fetchReviewData() {
@@ -32,15 +221,32 @@ document.addEventListener("DOMContentLoaded", async () => {
       // A. Fetch Income (Profile)
       // Default empty object if fails
       const profile = await safeJson(fetch("/profile/full", { credentials: "include" })) || {};
+      const surveyProfile = await safeJson(fetch("/api/user-survey-profile", { credentials: "include" })) || {};
 
       // B. Fetch Expenses Aggregations
       // Default empty array if fails (e.g. server down/restarting)
-      const breakdown = await safeJson(fetch("/api/expenses/breakdown", { credentials: "include" })) || [];
-      const weekly = await safeJson(fetch("/api/expenses/weekly", { credentials: "include" })) || [];
+      const breakdownRaw = await safeJson(fetch("/api/expenses/breakdown", { credentials: "include" })) || [];
+      const weeklyRaw = await safeJson(fetch("/api/expenses/weekly", { credentials: "include" })) || [];
+      const allExpensesRaw = await safeJson(fetch("/api/expenses", { credentials: "include" })) || [];
 
       // Ensure they are arrays (handle 500 error JSON responses)
-      const breakdownArr = Array.isArray(breakdown) ? breakdown : [];
-      const weeklyArr = Array.isArray(weekly) ? weekly : [];
+      let breakdownArr = Array.isArray(breakdownRaw) ? breakdownRaw : [];
+      let weeklyArr = Array.isArray(weeklyRaw) ? weeklyRaw : [];
+      const allExpenses = Array.isArray(allExpensesRaw) ? allExpensesRaw : [];
+
+      // Fallback: if current-month endpoint returns empty, derive from latest month with data.
+      if ((breakdownArr.length === 0 || weeklyArr.length === 0) && allExpenses.length > 0) {
+        const latestMonthExpenses = pickLatestMonthExpenses(allExpenses);
+        if (latestMonthExpenses.length > 0) {
+          if (breakdownArr.length === 0) breakdownArr = buildBreakdownFromExpenses(latestMonthExpenses);
+          if (weeklyArr.length === 0) weeklyArr = buildWeeklyFromExpenses(latestMonthExpenses);
+        }
+      } else if (allExpenses.length > 0) {
+        const latestMonthExpenses = pickLatestMonthExpenses(allExpenses);
+        if (latestMonthExpenses.length > 0) {
+          updateReviewSubtitle(latestMonthExpenses[0]._date);
+        }
+      }
 
       // C. Fetch Goals (Investment Goals via FastAPI or Legacy)
       let goals = [];
@@ -71,12 +277,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         goals: goalProgressData.length
       });
 
-      processAndRender(profile, breakdownArr, weeklyArr, goalProgressData);
+      processAndRender(profile, surveyProfile, breakdownArr, weeklyArr, goalProgressData, {
+        allExpensesCount: allExpenses.length
+      });
 
     } catch (err) {
       console.error("Critical Review Data Load Error:", err);
       // Ensure UI shows something even if criticial fail
-      processAndRender({}, [], [], []);
+      processAndRender({}, {}, [], [], [], { allExpensesCount: 0 });
     }
   }
 
@@ -92,6 +300,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             name: g.name,
             target: parseFloat(g.target_value || g.target_amount || 0),
             current: parseFloat(portfolio.summary?.total_current_value || 0),
+            invested: parseFloat(portfolio.summary?.total_invested || 0),
             progress: portfolio.summary?.progress_percentage || 0
           };
         } else {
@@ -103,6 +312,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           name: g.name,
           target: parseFloat(g.target_value || g.target_amount || 0),
           current: 0,
+          invested: 0,
           progress: 0
         };
       }
@@ -112,30 +322,52 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // --- 2. PROCESSING LOGIC ---
-  function processAndRender(profile, breakdown, weekly, goalsData) {
+  function processAndRender(profile, surveyProfile, breakdown, weekly, goalsData, meta = {}) {
     // --- Calculate Totals ---
     const totalExpenses = breakdown.reduce((sum, item) => sum + parseFloat(item.total || 0), 0);
 
-    // Estimate Income
-    let monthlyIncome = 60000; // Default fallback
-    if (profile && profile.annual_income_range) {
-      try {
-        const match = profile.annual_income_range.match(/(\d+)/);
-        if (match) {
-          const lowerLakhs = parseInt(match[1], 10);
-          monthlyIncome = (lowerLakhs * 100000) / 12;
-        }
-      } catch (e) { console.warn("Income parse error", e); }
-    }
+    const incomeContext = resolveIncomeContext(profile, surveyProfile);
+    const monthlyIncome = incomeContext.monthlyIncome;
+    const savingsRatio = normalizeSavingsRatio(surveyProfile);
+    const baselineSavings = monthlyIncome * savingsRatio;
+    const observedSavings = monthlyIncome - totalExpenses;
 
-    const saved = monthlyIncome - totalExpenses;
+    const expenseSignal = Math.min(Number(meta.allExpensesCount || 0) / 20, 1);
+    const goalsCount = Array.isArray(goalsData) ? goalsData.length : 0;
+    const fundedGoals = (Array.isArray(goalsData) ? goalsData : []).filter((g) => {
+      const current = Number(g.current || 0);
+      const invested = Number(g.invested || 0);
+      return current > 0 || invested > 0;
+    }).length;
+
+    const goalsSignal = goalsCount > 0 ? Math.min(goalsCount / 4, 1) : 0;
+    const fundingSignal = goalsCount > 0 ? Math.min(fundedGoals / goalsCount, 1) : 0;
+
+    const dataConfidence = expenseSignal > 0
+      ? Math.min(0.9, (expenseSignal * 0.7) + (goalsSignal * 0.15) + (fundingSignal * 0.15))
+      : Math.min(0.25, (goalsSignal * 0.15) + (fundingSignal * 0.1));
+
+    const blendedSavings = (baselineSavings * (1 - dataConfidence)) + (observedSavings * dataConfidence);
+    const saved = Number.isFinite(blendedSavings) ? blendedSavings : baselineSavings;
     const savingsRate = monthlyIncome > 0 ? Math.round((saved / monthlyIncome) * 100) : 0;
 
     // --- Render KPI Stats ---
-    updateText("incomeVal", formatCurrency(monthlyIncome));
+    const incomeText = incomeContext.hasRangeSelection
+      ? incomeContext.rangeLabel
+      : formatCurrency(monthlyIncome);
+    updateText("incomeVal", incomeText);
     updateText("expensesVal", formatCurrency(totalExpenses));
     updateText("savedVal", formatCurrency(saved));
     updateText("rateVal", `${savingsRate}%`);
+    if (rateChangeEl) {
+      const confidencePct = Math.round(dataConfidence * 100);
+      rateChangeEl.textContent = confidencePct > 0
+        ? `${confidencePct}% based on live financial data`
+        : `Baseline from ${Math.round(savingsRatio * 100)}% savings habit`;
+      rateChangeEl.className = `stat-change ${saved >= 0 ? "positive" : "negative"}`;
+    }
+
+    renderIncomeContextCard(incomeContext, savingsRatio, baselineSavings, dataConfidence);
 
     // --- Render Highlights ---
     renderHighlights(hlContainer, totalExpenses, breakdown, weekly);

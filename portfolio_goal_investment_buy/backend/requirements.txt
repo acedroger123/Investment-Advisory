@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+pandas
+numpy
+yfinance
+python-dateutil
+pydantic
+pydantic-settings
+aiosqlite
+httpx
+apscheduler

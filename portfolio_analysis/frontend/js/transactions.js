@@ -229,20 +229,36 @@ async function submitTransaction(event) {
         notes: document.getElementById('notes').value || null,
     };
 
+    // Pre-validate price before submitting
+    const resultDiv = document.getElementById('validationResult');
+    try {
+        const validation = await API.Stocks.validatePrice(
+            formData.stock_symbol, formData.transaction_date, formData.price
+        );
+        if (!validation.is_valid) {
+            showToast(`Price validation failed: ${validation.message}. Please enter the correct price.`, 'error');
+            resultDiv.style.display = 'flex';
+            resultDiv.innerHTML = `
+                <span class="validation-icon">❌</span>
+                <span class="validation-message">${validation.message}. Please correct the price.</span>
+            `;
+            resultDiv.className = 'validation-result invalid';
+            return;
+        }
+    } catch (err) {
+        showToast(`Could not validate price: ${err.message}. Transaction blocked.`, 'error');
+        return;
+    }
+
     try {
         const result = await API.Transactions.create(formData);
-
-        if (result.warning) {
-            showToast(result.warning, 'error');
-        } else {
-            showToast('Transaction recorded successfully!', 'success');
-        }
+        showToast('Transaction recorded successfully!', 'success');
 
         // Reset form
         document.getElementById('transactionForm').reset();
         setMaxTransactionDate();
         document.getElementById('totalValue').textContent = '₹0';
-        document.getElementById('validationResult').style.display = 'none';
+        resultDiv.style.display = 'none';
 
         // Reload transactions
         loadTransactions();

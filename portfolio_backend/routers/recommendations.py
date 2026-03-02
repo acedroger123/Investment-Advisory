@@ -9,6 +9,7 @@ from portfolio_backend.database import get_db
 from portfolio_backend.database.models import Goal, Alert, User
 from portfolio_backend.auth import get_current_pg_user_id, get_goal_for_pg_user
 from portfolio_backend.services.rebalancing import RebalancingService
+from portfolio_backend.services.smart_buy import get_smart_buy_recommendations
 
 router = APIRouter(prefix="/recommendations", tags=["Recommendations"])
 
@@ -53,6 +54,20 @@ async def get_buy_suggestions(
         raise HTTPException(status_code=404, detail="Goal not found")
     
     return RebalancingService.get_buy_recommendations(db, goal_id)
+
+
+@router.get("/{goal_id}/smart-buy", response_model=List[dict])
+async def get_smart_buy(
+    goal_id: int,
+    pg_user_id: int = Depends(get_current_pg_user_id),
+    db: Session = Depends(get_db)
+):
+    """Get dip-based smart buy recommendations aligned with goal risk and growth."""
+    goal = get_goal_for_pg_user(db, goal_id, pg_user_id)
+    if not goal:
+        raise HTTPException(status_code=404, detail="Goal not found")
+
+    return get_smart_buy_recommendations(db, goal_id)
 
 
 @router.get("/{goal_id}/alerts", response_model=List[dict])

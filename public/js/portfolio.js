@@ -6,6 +6,7 @@
 let currentGoalId = null;
 let portfolioValueChart = null;
 let stockAllocationChart = null;
+let currentHoldingSymbols = new Set();
 
 // ============================================
 // Initialization
@@ -77,6 +78,11 @@ async function loadPortfolioData() {
 
         // Show content
         document.getElementById('portfolioContent').style.display = 'block';
+
+        // Smart Buy recommendations (feature-level add, non-blocking)
+        loadSmartBuy().catch((error) => {
+            console.error('Smart Buy load failed:', error);
+        });
     } catch (error) {
         console.error('Failed to load portfolio data:', error);
         showToast('Failed to load portfolio data. Please try again.', 'error');
@@ -133,6 +139,7 @@ function updateHoldingsTable(holdings) {
     const tbody = document.querySelector('#holdingsTable tbody');
 
     if (!holdings || holdings.length === 0) {
+        currentHoldingSymbols = new Set();
         tbody.innerHTML = `
             <tr class="empty-row">
                 <td colspan="7">No holdings yet. Add transactions to get started.</td>
@@ -140,6 +147,12 @@ function updateHoldingsTable(holdings) {
         `;
         return;
     }
+
+    currentHoldingSymbols = new Set(
+        holdings
+            .map((h) => normalizeStockSymbol(h.symbol || h.stock_symbol))
+            .filter(Boolean)
+    );
 
     tbody.innerHTML = holdings.map(h => {
         const currentValue = h.current_value || (h.quantity * (h.current_price || 0));
@@ -416,4 +429,470 @@ function refreshPortfolio() {
     } else {
         showToast('Please select a goal first.', 'info');
     }
+}
+
+// ============================================
+// Smart Buy Recommendations
+// ============================================
+function ensureSmartBuySection() {
+    const content = document.getElementById('portfolioContent');
+    if (!content) return null;
+
+    let section = document.getElementById('smartBuySection');
+    if (section) return section;
+
+    section = document.createElement('section');
+    section.id = 'smartBuySection';
+    section.className = 'data-section smart-buy-section';
+    section.style.gridTemplateColumns = '1fr';
+    section.innerHTML = `
+        <div class="data-card">
+            <div class="card-header">
+                <div class="smart-buy-header-title">
+                    <span class="smart-buy-icon">🎯</span>
+                    <h3>Smart Buy Recommendations</h3>
+                    <span class="badge badge-info smart-buy-ai-badge">AI Powered</span>
+                </div>
+                <button id="refreshSmartBuyBtn" class="btn btn-secondary btn-sm" type="button">Refresh</button>
+            </div>
+            <p class="smart-buy-subtitle">
+                Stocks with meaningful short-term dips that still fit your goal, risk profile, and growth requirement.
+            </p>
+            <div id="smartBuyLoading" class="portfolio-loading" style="display:none;min-height:120px;">
+                <div class="loading-spinner"></div>
+                <span>Analyzing market dips and goal fit...</span>
+            </div>
+            <div id="smartBuyList" class="smart-buy-grid"></div>
+        </div>
+    `;
+
+    const recentTxSection = document.getElementById('recentTransactionsList')?.closest('section');
+    if (recentTxSection && recentTxSection.parentNode) {
+        recentTxSection.parentNode.insertBefore(section, recentTxSection);
+    } else {
+        content.appendChild(section);
+    }
+
+    const refreshBtn = section.querySelector('#refreshSmartBuyBtn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+            loadSmartBuy().catch((error) => {
+                console.error('Smart Buy refresh failed:', error);
+            });
+        });
+    }
+
+    return section;
+}
+
+async function loadSmartBuy() {
+    if (!currentGoalId) return;
+
+    ensureSmartBuySection();
+    const listEl = document.getElementById('smartBuyList');
+    const loadingEl = document.getElementById('smartBuyLoading');
+    const refreshBtn = document.getElementById('refreshSmartBuyBtn');
+
+    if (!listEl || !loadingEl || !API.Recommendations.getSmartBuy) return;
+
+    loadingEl.style.display = 'flex';
+    listEl.innerHTML = '';
+    if (refreshBtn) {
+        refreshBtn.disabled = true;
+        refreshBtn.textContent = 'Refreshing...';
+    }
+
+    try {
+        const recs = await API.Recommendations.getSmartBuy(currentGoalId);
+        renderSmartBuyRecommendations(recs);
+    } catch (err) {
+        console.error('Smart Buy fetch failed:', err);
+        listEl.innerHTML = `
+            <div class="smart-buy-empty">
+                <span class="smart-buy-empty-icon">📡</span>
+                <p>Unable to fetch Smart Buy recommendations right now.</p>
+            </div>`;
+    } finally {
+        loadingEl.style.display = 'none';
+        if (refreshBtn) {
+            refreshBtn.disabled = false;
+            refreshBtn.textContent = 'Refresh';
+        }
+    }
+}
+
+function renderSmartBuyRecommendations(recs) {
+    const listEl = document.getElementById('smartBuyList');
+    if (!listEl) return;
+
+    const filteredRecs = (Array.isArray(recs) ? recs : []).filter((r) => {
+        const symbol = normalizeStockSymbol(r?.symbol);
+        return !r?.already_held && !currentHoldingSymbols.has(symbol);
+    });
+
+    if (filteredRecs.length === 0) {
+        listEl.innerHTML = `
+            <div class="smart-buy-empty">
+                <span class="smart-buy-empty-icon">✅</span>
+                <p>No new Smart Buy opportunities right now. Existing picks are already in your portfolio or market dips are limited.</p>
+            </div>`;
+        return;
+    }
+
+    listEl.innerHTML = filteredRecs.map((r) => {
+        const conviction = (r.conviction || 'WATCH').toUpperCase();
+        const convClass = conviction === 'STRONG'
+            ? 'conviction-strong'
+            : conviction === 'MODERATE'
+                ? 'conviction-moderate'
+                : 'conviction-watch';
+        const dipValue = Number(r.dip_pct || 0);
+        const dipClass = dipValue <= -10 ? 'dip-deep' : 'dip-mild';
+        const score = Math.max(0, Math.min(Number(r.goal_fit_score || 0), 100));
+        const scoreLabel = escapeHtml(r.goal_fit_label || (score >= 75 ? 'High Fit' : score >= 55 ? 'Moderate Fit' : 'Low Fit'));
+        const reasons = buildSmartBuyReasonList(r.reason);
+        const symbol = escapeHtml(normalizeStockSymbol(r.symbol));
+        const name = escapeHtml(r.name || r.symbol || 'Unknown');
+        const sector = escapeHtml(r.sector || 'Unknown');
+        const price = formatCurrency(r.current_price || 0);
+
+        return `
+            <article class="smart-buy-card ${convClass}">
+                <div class="smart-buy-card-top">
+                    <div class="smart-buy-symbol-block">
+                        <span class="smart-buy-symbol">${symbol}</span>
+                        <span class="smart-buy-name">${name}</span>
+                    </div>
+                    <span class="conviction-pill ${convClass}">${escapeHtml(conviction)}</span>
+                </div>
+                <div class="smart-buy-metrics">
+                    <div class="smart-buy-metric">
+                        <span class="metric-label">Current Price</span>
+                        <span class="metric-value">${price}</span>
+                    </div>
+                    <div class="smart-buy-metric">
+                        <span class="metric-label">5-Day Dip</span>
+                        <span class="metric-value ${dipClass}">${dipValue.toFixed(1)}%</span>
+                    </div>
+                    <div class="smart-buy-metric">
+                        <span class="metric-label">Sector</span>
+                        <span class="metric-value metric-sector">${sector}</span>
+                    </div>
+                </div>
+                <div class="smart-buy-fit">
+                    <div class="fit-bar-header">
+                        <span class="fit-bar-label">Goal Fit Score</span>
+                        <span class="fit-bar-score">${score}/100 - ${scoreLabel}</span>
+                    </div>
+                    <div class="fit-bar">
+                        <div class="fit-bar-fill ${convClass}" style="width:${score}%;"></div>
+                    </div>
+                </div>
+                <div class="smart-buy-reason">
+                    <ul class="smart-buy-reason-list">${reasons}</ul>
+                </div>
+            </article>
+        `;
+    }).join('');
+}
+
+function normalizeStockSymbol(symbol) {
+    return String(symbol || '')
+        .toUpperCase()
+        .replace('.NS', '')
+        .replace('.BO', '')
+        .trim();
+}
+
+function buildSmartBuyReasonList(reason) {
+    const parts = String(reason || '')
+        .split('·')
+        .map((text) => text.trim())
+        .filter(Boolean)
+        .slice(0, 3);
+
+    if (parts.length === 0) {
+        return '<li>Market dip and goal-fit conditions are favorable.</li>';
+    }
+
+    return parts.map((text) => `<li>${escapeHtml(text)}</li>`).join('');
+}
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+}
+
+if (!document.getElementById('smartBuyFeatureStyles')) {
+    const smartBuyStyle = document.createElement('style');
+    smartBuyStyle.id = 'smartBuyFeatureStyles';
+    smartBuyStyle.textContent = `
+    .smart-buy-section .card-header {
+        align-items: flex-start;
+        gap: var(--spacing-md);
+        flex-wrap: wrap;
+    }
+
+    .smart-buy-header-title {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        flex-wrap: wrap;
+    }
+
+    .smart-buy-icon {
+        font-size: var(--font-size-lg);
+    }
+
+    .smart-buy-ai-badge {
+        background: rgba(99, 102, 241, 0.16);
+        border: 1px solid rgba(99, 102, 241, 0.35);
+        color: var(--color-primary-light);
+    }
+
+    .smart-buy-subtitle {
+        color: var(--text-muted);
+        font-size: var(--font-size-sm);
+        margin: -6px 0 var(--spacing-lg);
+        line-height: 1.45;
+    }
+
+    .smart-buy-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: var(--spacing-md);
+    }
+
+    .smart-buy-card {
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius-lg);
+        background: var(--glass-bg);
+        padding: var(--spacing-md);
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-md);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .smart-buy-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 3px;
+    }
+
+    .smart-buy-card.conviction-strong::before {
+        background: var(--gradient-green);
+    }
+
+    .smart-buy-card.conviction-moderate::before {
+        background: var(--gradient-orange);
+    }
+
+    .smart-buy-card.conviction-watch::before {
+        background: linear-gradient(180deg, #64748b, #94a3b8);
+    }
+
+    .smart-buy-card-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: var(--spacing-sm);
+    }
+
+    .smart-buy-symbol-block {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+    }
+
+    .smart-buy-symbol {
+        font-size: var(--font-size-lg);
+        font-weight: 700;
+        line-height: 1.1;
+        letter-spacing: 0.3px;
+    }
+
+    .smart-buy-name {
+        font-size: var(--font-size-xs);
+        color: var(--text-muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 170px;
+    }
+
+    .conviction-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 10px;
+        border-radius: var(--radius-full);
+        font-size: var(--font-size-xs);
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+    }
+
+    .conviction-pill.conviction-strong {
+        background: rgba(16, 185, 129, 0.18);
+        color: var(--color-accent-green);
+    }
+
+    .conviction-pill.conviction-moderate {
+        background: rgba(245, 158, 11, 0.18);
+        color: var(--color-accent-orange);
+    }
+
+    .conviction-pill.conviction-watch {
+        background: rgba(100, 116, 139, 0.2);
+        color: var(--text-secondary);
+    }
+
+    .smart-buy-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: var(--spacing-sm);
+    }
+
+    .smart-buy-metric {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        min-width: 0;
+    }
+
+    .metric-label {
+        font-size: 10px;
+        color: var(--text-muted);
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+    }
+
+    .metric-value {
+        font-size: var(--font-size-sm);
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .metric-value.dip-deep {
+        color: var(--color-accent-red);
+    }
+
+    .metric-value.dip-mild {
+        color: var(--color-accent-orange);
+    }
+
+    .metric-value.metric-sector {
+        color: var(--color-primary-light);
+        font-size: var(--font-size-xs);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .smart-buy-fit {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-xs);
+    }
+
+    .fit-bar-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: var(--spacing-sm);
+    }
+
+    .fit-bar-label {
+        font-size: 10px;
+        color: var(--text-muted);
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+    }
+
+    .fit-bar-score {
+        font-size: var(--font-size-xs);
+        color: var(--text-secondary);
+        font-weight: 600;
+    }
+
+    .fit-bar {
+        height: 7px;
+        border-radius: var(--radius-full);
+        overflow: hidden;
+        background: rgba(148, 163, 184, 0.18);
+    }
+
+    .fit-bar-fill {
+        height: 100%;
+        border-radius: var(--radius-full);
+        transition: width 0.45s ease;
+    }
+
+    .fit-bar-fill.conviction-strong {
+        background: var(--gradient-green);
+    }
+
+    .fit-bar-fill.conviction-moderate {
+        background: var(--gradient-orange);
+    }
+
+    .fit-bar-fill.conviction-watch {
+        background: linear-gradient(90deg, #64748b, #94a3b8);
+    }
+
+    .smart-buy-reason {
+        border-top: 1px solid var(--glass-border);
+        padding-top: var(--spacing-sm);
+    }
+
+    .smart-buy-reason-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        color: var(--text-secondary);
+        font-size: var(--font-size-xs);
+        line-height: 1.45;
+    }
+
+    .smart-buy-reason-list li::before {
+        content: '•';
+        color: var(--text-muted);
+        margin-right: 6px;
+    }
+
+    .smart-buy-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: var(--spacing-sm);
+        min-height: 120px;
+        color: var(--text-muted);
+        grid-column: 1 / -1;
+    }
+
+    .smart-buy-empty-icon {
+        font-size: 24px;
+    }
+
+    @media (max-width: 920px) {
+        .smart-buy-metrics {
+            grid-template-columns: 1fr;
+        }
+    }
+`;
+    document.head.appendChild(smartBuyStyle);
 }

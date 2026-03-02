@@ -45,9 +45,18 @@ class MonteCarloService:
         if days_to_deadline <= 0:
             return {"error": "Goal deadline has passed"}
         
-        # Default market parameters
-        mu = 0.12 / MonteCarloService.TRADING_DAYS_PER_YEAR
-        sigma = 0.20 / np.sqrt(MonteCarloService.TRADING_DAYS_PER_YEAR)
+        # Risk-adjusted market parameters based on goal risk preference
+        risk_params = {
+            "low": {"annual_return": 0.10, "annual_volatility": 0.15},
+            "moderate": {"annual_return": 0.14, "annual_volatility": 0.22},
+            "high": {"annual_return": 0.20, "annual_volatility": 0.32},
+        }
+        risk_key = goal.risk_preference if goal.risk_preference in risk_params else "moderate"
+        params = risk_params[risk_key]
+        annual_return = params["annual_return"]
+        annual_volatility = params["annual_volatility"]
+        mu = annual_return / MonteCarloService.TRADING_DAYS_PER_YEAR
+        sigma = annual_volatility / np.sqrt(MonteCarloService.TRADING_DAYS_PER_YEAR)
         
         # Run simulations
         final_values = []
@@ -75,6 +84,9 @@ class MonteCarloService:
         return {
             "goal_id": goal_id,
             "goal_name": goal.name,
+            "risk_preference": goal.risk_preference,
+            "assumed_annual_return": round(annual_return * 100, 1),
+            "assumed_annual_volatility": round(annual_volatility * 100, 1),
             "num_simulations": num_simulations,
             "days_to_deadline": days_to_deadline,
             "current_value": round(current_value, 2),

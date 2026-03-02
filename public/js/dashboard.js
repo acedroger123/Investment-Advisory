@@ -6,7 +6,6 @@
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', async () => {
     await loadGoals();
-    await loadSurveyProfile();
     setupEventListeners();
     setDefaultDeadline();
     await loadExpenseDashboardWidgets();

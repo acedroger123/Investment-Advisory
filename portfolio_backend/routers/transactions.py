@@ -9,7 +9,7 @@ from datetime import date
 from typing import Optional, List
 
 from portfolio_backend.database import get_db
-from portfolio_backend.database.models import Transaction, Goal, User
+from portfolio_backend.database.models import Transaction, Goal, Holding, User
 from portfolio_backend.auth import get_current_pg_user_id, get_goal_for_pg_user
 from portfolio_backend.services.market_data import MarketDataService
 from portfolio_backend.services.portfolio_service import PortfolioService
@@ -50,37 +50,38 @@ async def create_transaction(
     pg_user_id: int = Depends(get_current_pg_user_id),
     db: Session = Depends(get_db)
 ):
-    """Record a new stock transaction with price validation.
-    
-    Transactions are scoped to a specific goal.
-    """
-    # Validate goal exists
+    """Record a new stock transaction with price validation."""
     goal = get_goal_for_pg_user(db, txn.goal_id, pg_user_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
-    
-    # Normalize symbol and get stock info
+
     symbol = MarketDataService.normalize_symbol(txn.stock_symbol)
     stock_info = MarketDataService.get_stock_info(symbol)
-    stock_name = stock_info.get('name', txn.stock_symbol) if stock_info else txn.stock_symbol
-    
-    # Validate transaction price
+    stock_name = stock_info.get("name", txn.stock_symbol) if stock_info else txn.stock_symbol
+
     is_valid, validation_message = MarketDataService.validate_transaction_price(
         symbol, txn.transaction_date, txn.price
     )
-    
-    # For SELL, check if we have enough shares in this goal's holdings
-    if txn.transaction_type.upper() == "SELL":
-        positions, _, _ = PortfolioService._replay_transactions(db, txn.goal_id)
-        current_qty = int((positions.get(symbol) or {}).get("qty", 0))
 
-        if current_qty < txn.quantity:
+    if not is_valid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Price validation failed: {validation_message}. Please enter the correct price."
+        )
+
+    if txn.transaction_type.upper() == "SELL":
+        holding = db.query(Holding).filter(
+            Holding.goal_id == txn.goal_id,
+            Holding.stock_symbol == symbol
+        ).first()
+
+        if not holding or holding.quantity < txn.quantity:
+            current_qty = holding.quantity if holding else 0
             raise HTTPException(
                 status_code=400,
                 detail=f"Insufficient shares in this goal. You have {current_qty} shares of {symbol}"
             )
-    
-    # Create transaction record
+
     transaction = Transaction(
         goal_id=txn.goal_id,
         stock_symbol=symbol,
@@ -94,16 +95,22 @@ async def create_transaction(
         notes=txn.notes
     )
     transaction.calculate_total_value()
-    
-    db.add(transaction)
-    db.flush()
 
-    # Always rebuild holdings from transactions to keep portfolio math consistent.
-    PortfolioService.sync_holdings_table(db, txn.goal_id)
+    db.add(transaction)
     db.commit()
-    
+
+    PortfolioService.update_holding_on_transaction(
+        db=db,
+        goal_id=txn.goal_id,
+        symbol=symbol,
+        stock_name=stock_name,
+        transaction_type=txn.transaction_type,
+        quantity=txn.quantity,
+        price=txn.price
+    )
+
     db.refresh(transaction)
-    
+
     return {
         "message": "Transaction recorded successfully",
         "transaction": {
@@ -116,8 +123,7 @@ async def create_transaction(
             "total_value": transaction.total_value,
             "validated": transaction.validated,
             "validation_message": transaction.validation_message
-        },
-        "warning": None if is_valid else "Price validation failed - transaction recorded but flagged"
+        }
     }
 
 
@@ -135,12 +141,12 @@ async def list_transactions(
         .join(User, Goal.user_id == User.id)
         .filter(User.pg_user_id == pg_user_id)
     )
-    
+
     if goal_id:
         query = query.filter(Transaction.goal_id == goal_id)
-    
+
     transactions = query.order_by(Transaction.transaction_date.desc()).limit(limit).all()
-    
+
     return [
         {
             "id": t.id,
@@ -175,7 +181,7 @@ async def get_transaction(
     )
     if not txn:
         raise HTTPException(status_code=404, detail="Transaction not found")
-    
+
     return {
         "id": txn.id,
         "goal_id": txn.goal_id,
@@ -209,14 +215,24 @@ async def delete_transaction(
     )
     if not txn:
         raise HTTPException(status_code=404, detail="Transaction not found")
-    
-    goal_id = txn.goal_id
+
+    holding = db.query(Holding).filter(
+        Holding.goal_id == txn.goal_id,
+        Holding.stock_symbol == txn.stock_symbol
+    ).first()
+
+    if holding:
+        if txn.transaction_type.upper() == "BUY":
+            holding.quantity -= txn.quantity
+            if holding.quantity <= 0:
+                db.delete(holding)
+            else:
+                holding.total_invested = holding.quantity * holding.avg_buy_price
+        else:
+            holding.quantity += txn.quantity
+            holding.total_invested = holding.quantity * holding.avg_buy_price
+
     db.delete(txn)
-
-    db.flush()
-    # Rebuild holdings from remaining transactions for exact consistency.
-    PortfolioService.sync_holdings_table(db, goal_id)
     db.commit()
-    
-    return {"message": "Transaction deleted and holdings adjusted."}
 
+    return {"message": "Transaction deleted and holdings adjusted."}

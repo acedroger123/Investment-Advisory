@@ -65,6 +65,7 @@ function displayMonteCarloResults(result) {
     // Simulation info
     document.getElementById('simCount').textContent = `${result.num_simulations} simulations`;
     document.getElementById('simulationDate').textContent = `Run at: ${new Date().toLocaleString()}`;
+    const goalGap = Math.max((result.target_value || 0) - (result.current_value || 0), 0);
 
     // Goal comparison
     document.getElementById('goalComparison').innerHTML = `
@@ -79,7 +80,7 @@ function displayMonteCarloResults(result) {
             </div>
             <div class="comparison-item">
                 <span class="label">Gap to Goal</span>
-                <span class="value ${result.gap > 0 ? 'text-warning' : 'text-success'}">${formatCurrency(result.gap)}</span>
+                <span class="value ${goalGap > 0 ? 'text-warning' : 'text-success'}">${formatCurrency(goalGap)}</span>
             </div>
             <div class="comparison-item">
                 <span class="label">Days Remaining</span>
@@ -98,6 +99,58 @@ function displayMonteCarloResults(result) {
 
     // Create probability gauge (NEW!)
     Charts.createProbabilityGauge('probabilityGauge', result.success_probability, result.risk_level || 'Moderate');
+
+    renderSimulationAssumptions(result);
+}
+
+function ensureSimulationAssumptionsContainer() {
+    const resultsEl = document.getElementById('simulationResults');
+    if (!resultsEl) return null;
+
+    let assumptionsEl = document.getElementById('simulationAssumptions');
+    if (assumptionsEl) return assumptionsEl;
+
+    assumptionsEl = document.createElement('div');
+    assumptionsEl.id = 'simulationAssumptions';
+    assumptionsEl.style.display = 'none';
+    assumptionsEl.style.marginBottom = 'var(--spacing-xl)';
+
+    const targetNode = document.getElementById('goalComparison')?.closest('.data-card');
+    if (targetNode && targetNode.parentNode) {
+        targetNode.parentNode.insertBefore(assumptionsEl, targetNode);
+    } else {
+        resultsEl.appendChild(assumptionsEl);
+    }
+
+    return assumptionsEl;
+}
+
+function renderSimulationAssumptions(result) {
+    const assumptionsEl = ensureSimulationAssumptionsContainer();
+    if (!assumptionsEl) return;
+
+    if (result.assumed_annual_return == null || result.assumed_annual_volatility == null) {
+        assumptionsEl.style.display = 'none';
+        assumptionsEl.innerHTML = '';
+        return;
+    }
+
+    const riskColors = { low: '#10b981', moderate: '#f59e0b', high: '#ef4444' };
+    const color = riskColors[result.risk_preference] || 'var(--color-primary)';
+
+    assumptionsEl.style.display = 'block';
+    assumptionsEl.innerHTML = `
+        <div class="data-card">
+            <div class="card-header">
+                <h3>Simulation Assumptions</h3>
+            </div>
+            <div style="display:flex;gap:24px;flex-wrap:wrap;padding:var(--spacing-md);">
+                <span style="color:var(--text-secondary);">Risk Profile: <strong>${(result.risk_preference || 'moderate').toUpperCase()}</strong></span>
+                <span>Expected Return: <strong style="color:${color};">${result.assumed_annual_return}% / year</strong></span>
+                <span>Volatility: <strong style="color:${color};">${result.assumed_annual_volatility}% / year</strong></span>
+            </div>
+        </div>
+    `;
 }
 
 async function runStressTest() {
