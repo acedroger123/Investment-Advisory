@@ -3,19 +3,23 @@ ALLOWED_CATEGORIES = {
         "rent",
         "insurance",
         "loan payments",
+        "emi",
+        "other - fixed",
     ],
     "Variable": [
-        "Food and groceries",
+        "food and groceries",
         "utilities",
         "transport",
         "medical",
+        "other - variable",
     ],
     "Discretionary": [
-        "dinning out",
+        "dining out",
         "shopping",
         "entertainment",
         "subscriptions",
         "travel",
+        "other - discretionary",
     ],
 }
 

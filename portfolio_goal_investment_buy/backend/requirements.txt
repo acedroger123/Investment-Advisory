@@ -7,6 +7,6 @@ yfinance
 python-dateutil
 pydantic
 pydantic-settings
-aiosqlite
+psycopg2-binary
 httpx
 apscheduler

@@ -92,6 +92,7 @@
                 <th>Nature</th>
                 <th>Amount</th>
                 <th>Note</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody id="expenseList"></tbody>
@@ -117,6 +118,111 @@
         <div id="habitText" class="expense-habit-detection">No patterns detected yet.</div>
       </div>
     </section>
+
+    <!-- ML Analysis: Category Stability -->
+    <section class="data-section" style="margin-top: 1.5rem;">
+      <div class="data-card" style="grid-column: span 2;">
+        <div class="card-header">
+          <h3>📊 Category Stability (per Month)</h3>
+          <span style="font-size: 0.8rem; opacity: 0.6;">Higher score = more consistent spending</span>
+        </div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Month</th>
+                <th>Category</th>
+                <th>Avg Spend (₹)</th>
+                <th>Stability Score</th>
+                <th>Rating</th>
+              </tr>
+            </thead>
+            <tbody id="categoryStabilityList">
+              <tr>
+                <td colspan="5" style="text-align:center; opacity:0.5;">Loading stability data...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ML Analysis: Overspending Flags + Anomalies -->
+    <section class="charts-section" style="margin-top: 1.5rem;">
+      <div class="data-card">
+        <div class="card-header">
+          <h3>⚠️ Overspending Flags</h3>
+          <span style="font-size: 0.8rem; opacity: 0.6;">Transactions above 1.5× category median</span>
+        </div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Category</th>
+                <th>Amount (₹)</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="overspendingList">
+              <tr>
+                <td colspan="4" style="text-align:center; opacity:0.5;">Loading...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="data-card">
+        <div class="card-header">
+          <h3>🚨 Anomaly Detection</h3>
+          <span style="font-size: 0.8rem; opacity: 0.6;">Z-score &gt; 2.5 standard deviations</span>
+        </div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Category</th>
+                <th>Amount (₹)</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="anomalyList">
+              <tr>
+                <td colspan="4" style="text-align:center; opacity:0.5;">Loading...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ML Analysis: Expense Clusters -->
+    <section class="data-section" style="margin-top: 1.5rem;">
+      <div class="data-card" style="grid-column: span 2;">
+        <div class="card-header">
+          <h3>🗂️ Expense Clusters</h3>
+          <span style="font-size: 0.8rem; opacity: 0.6;">KMeans clustering by amount, time of day, and day of week</span>
+        </div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Category</th>
+                <th>Amount (₹)</th>
+                <th>Cluster</th>
+              </tr>
+            </thead>
+            <tbody id="clusterList">
+              <tr>
+                <td colspan="4" style="text-align:center; opacity:0.5;">Loading cluster data...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   </main>
 
   <!-- Add Expense Modal (Unified with Goal Modal) -->
@@ -124,7 +230,7 @@
     <div class="modal-overlay" id="modalOverlay"></div>
     <div class="modal-content">
       <div class="modal-header">
-        <h2>Add Transaction</h2>
+        <h2 id="expenseModalTitle">Add Transaction</h2>
         <button class="modal-close" id="closeModalIcon">&times;</button>
       </div>
 
@@ -140,15 +246,25 @@
             <option value="">Select Category</option>
             <optgroup label="Fixed">
               <option value="Rent">Rent</option>
-              <option value="Utilities">Utilities</option>
+              <option value="EMI">EMI</option>
+              <option value="Insurance">Insurance</option>
+              <option value="Loan Payments">Loan Payments</option>
+              <option value="Other - Fixed">Other - Fixed</option>
             </optgroup>
             <optgroup label="Variable">
-              <option value="Food">Food</option>
+              <option value="Food and Groceries">Food and Groceries</option>
+              <option value="Utilities">Utilities</option>
               <option value="Transport">Transport</option>
+              <option value="Medical">Medical</option>
+              <option value="Other - Variable">Other - Variable</option>
             </optgroup>
             <optgroup label="Discretionary">
+              <option value="Dining Out">Dining Out</option>
               <option value="Entertainment">Entertainment</option>
               <option value="Shopping">Shopping</option>
+              <option value="Subscriptions">Subscriptions</option>
+              <option value="Travel">Travel</option>
+              <option value="Other - Discretionary">Other - Discretionary</option>
             </optgroup>
           </select>
         </div>
@@ -165,7 +281,7 @@
 
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" id="cancelModal">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save Transaction</button>
+          <button type="submit" class="btn btn-primary" id="saveExpenseBtn">Save Transaction</button>
         </div>
       </form>
     </div>
@@ -181,10 +297,6 @@
   <script src="expenses.js"></script>
   <script>
     if (window.lucide) lucide.createIcons();
-    // Cancel button also closes the modal
-    document.getElementById('cancelModal').onclick = () => {
-      document.getElementById('addModal').classList.remove('active');
-    };
   </script>
 </body>
 

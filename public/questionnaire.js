@@ -52,9 +52,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       financial_comfort: toInt("financial_comfort", 3),
       loss_reaction: toInt("loss_reaction", 1),
       return_priority: toInt("return_priority", 2),
-      volatility_comfort: toInt("volatility_comfort", 2),
-      goal: document.getElementById("goal")?.value || "Wealth",
-      time_horizon: toInt("time_horizon", 2)
+      volatility_comfort: toInt("volatility_comfort", 2)
     };
 
     payload.risk_label = riskFromAnswers(payload);

@@ -224,6 +224,483 @@ function riskStyleFromLabel(value) {
   return 0.60
 }
 
+const ALLOWED_EXPENSE_NATURES = new Set(["Fixed", "Variable", "Discretionary"])
+const EXPENSE_CATEGORY_REGEX = /^[A-Za-z0-9][A-Za-z0-9 &()'.,/-]{0,59}$/
+const MAX_EXPENSE_NOTE_LENGTH = 200
+const MAX_STATEMENT_SIZE_BYTES = 8 * 1024 * 1024
+const BANK_STATEMENT_KEYWORDS = [
+  "statement",
+  "account",
+  "bank",
+  "debit",
+  "credit",
+  "balance",
+  "transaction",
+  "withdrawal"
+]
+const MONTH_LOOKUP = {
+  jan: 1,
+  january: 1,
+  feb: 2,
+  february: 2,
+  mar: 3,
+  march: 3,
+  apr: 4,
+  april: 4,
+  may: 5,
+  jun: 6,
+  june: 6,
+  jul: 7,
+  july: 7,
+  aug: 8,
+  august: 8,
+  sep: 9,
+  sept: 9,
+  september: 9,
+  oct: 10,
+  october: 10,
+  nov: 11,
+  november: 11,
+  dec: 12,
+  december: 12
+}
+
+const CREDIT_DESCRIPTION_HINT_REGEX = /\b(salary|refund|reversal|cashback|interest|deposit|credit|inward|received)\b/i
+const HEADER_NOISE_REGEX = /\b(statement of account|for the period|opening balance|closing balance|available balance)\b/i
+
+function getTodayDateOnly() {
+  const now = new Date()
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate())
+}
+
+function formatDateOnly(dateObj) {
+  const yyyy = dateObj.getFullYear()
+  const mm = String(dateObj.getMonth() + 1).padStart(2, "0")
+  const dd = String(dateObj.getDate()).padStart(2, "0")
+  return `${yyyy}-${mm}-${dd}`
+}
+
+function parseYmdDate(rawValue) {
+  const match = String(rawValue || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return null
+
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const dateObj = new Date(year, month - 1, day)
+
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(day) ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31
+  ) {
+    return null
+  }
+
+  if (
+    dateObj.getFullYear() !== year ||
+    dateObj.getMonth() !== month - 1 ||
+    dateObj.getDate() !== day
+  ) {
+    return null
+  }
+
+  return dateObj
+}
+
+function normalizeExpenseDate(rawValue) {
+  if (rawValue === null || rawValue === undefined || String(rawValue).trim() === "") {
+    return { ok: false, error: "Expense date is required" }
+  }
+
+  let dateObj = null
+  const raw = String(rawValue).trim()
+
+  const parsedYmd = parseYmdDate(raw)
+  if (parsedYmd) {
+    dateObj = parsedYmd
+  } else {
+    const parsed = new Date(raw)
+    if (!Number.isNaN(parsed.getTime())) {
+      dateObj = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
+    }
+  }
+
+  if (!dateObj || Number.isNaN(dateObj.getTime())) {
+    return { ok: false, error: "Invalid expense date format" }
+  }
+
+  return {
+    ok: true,
+    value: formatDateOnly(dateObj),
+    dateObj
+  }
+}
+
+function normalizeExpenseNature(rawValue) {
+  const text = String(rawValue || "").trim().toLowerCase()
+  if (text === "fixed") return "Fixed"
+  if (text === "variable") return "Variable"
+  if (text === "discretionary") return "Discretionary"
+  return null
+}
+
+function validateExpensePayload(payload) {
+  const normalizedAmount = Math.round(Number(payload?.amount) * 100) / 100
+  if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0 || normalizedAmount > 100000000) {
+    return { ok: false, error: "Amount must be a valid positive number" }
+  }
+
+  const category = String(payload?.category || "").trim()
+  if (!category || !EXPENSE_CATEGORY_REGEX.test(category)) {
+    return { ok: false, error: "Category contains unsupported characters" }
+  }
+
+  const normalizedDate = normalizeExpenseDate(payload?.date)
+  if (!normalizedDate.ok) {
+    return { ok: false, error: normalizedDate.error }
+  }
+
+  if (normalizedDate.dateObj.getTime() > getTodayDateOnly().getTime()) {
+    return { ok: false, error: "Future-dated expenses are not allowed" }
+  }
+
+  const note = String(payload?.note || "").trim().replace(/\s+/g, " ")
+  if (note.length > MAX_EXPENSE_NOTE_LENGTH) {
+    return { ok: false, error: `Note is too long (max ${MAX_EXPENSE_NOTE_LENGTH} characters)` }
+  }
+
+  const nature = normalizeExpenseNature(payload?.nature)
+  if (!nature || !ALLOWED_EXPENSE_NATURES.has(nature)) {
+    return { ok: false, error: "Nature must be Fixed, Variable, or Discretionary" }
+  }
+
+  return {
+    ok: true,
+    value: {
+      amount: normalizedAmount,
+      category,
+      date: normalizedDate.value,
+      note,
+      nature
+    }
+  }
+}
+
+function parseStatementTransactionDate(rawValue) {
+  const text = String(rawValue || "").trim()
+  if (!text) return null
+
+  let year
+  let month
+  let day
+
+  const numericMatch = text.match(/^(\d{2})[/-](\d{2})[/-](\d{4})$/)
+  if (numericMatch) {
+    day = Number(numericMatch[1])
+    month = Number(numericMatch[2])
+    year = Number(numericMatch[3])
+  } else {
+    const monthNameMatch = text.match(/^(\d{2})-([A-Za-z]{3,9})-(\d{4})$/)
+    if (!monthNameMatch) return null
+    day = Number(monthNameMatch[1])
+    month = MONTH_LOOKUP[monthNameMatch[2].toLowerCase()]
+    year = Number(monthNameMatch[3])
+  }
+
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return null
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null
+
+  const dateObj = new Date(year, month - 1, day)
+  if (
+    Number.isNaN(dateObj.getTime()) ||
+    dateObj.getFullYear() !== year ||
+    dateObj.getMonth() !== month - 1 ||
+    dateObj.getDate() !== day
+  ) {
+    return null
+  }
+
+  return formatDateOnly(dateObj)
+}
+
+function inferMonthYearFromFileName(fileName) {
+  const name = String(fileName || "").toLowerCase()
+  if (!name) return null
+
+  const yearMatch = name.match(/\b(20\d{2})\b/)
+  if (!yearMatch) return null
+  const year = Number(yearMatch[1])
+
+  let month = null
+  const keys = Object.keys(MONTH_LOOKUP).sort((a, b) => b.length - a.length)
+  for (const key of keys) {
+    const regex = new RegExp(`\\b${key}\\b`, "i")
+    if (regex.test(name)) {
+      month = MONTH_LOOKUP[key]
+      break
+    }
+  }
+
+  if (!month) return null
+  return {
+    year,
+    month,
+    ym: `${year}-${String(month).padStart(2, "0")}`
+  }
+}
+
+function isFutureMonthYear(year, month) {
+  const now = new Date()
+  const currentYear = now.getFullYear()
+  const currentMonth = now.getMonth() + 1
+  return year > currentYear || (year === currentYear && month > currentMonth)
+}
+
+function hasLikelyBankStatementContent(text) {
+  const raw = String(text || "")
+  const normalized = raw.toLowerCase().replace(/\s+/g, " ").trim()
+  if (normalized.length < 30) return false
+
+  let keywordHits = 0
+  for (const keyword of BANK_STATEMENT_KEYWORDS) {
+    if (normalized.includes(keyword)) keywordHits++
+  }
+
+  const transactionLikeRegex = /(\d{2}[/-]\d{2}[/-]\d{4}|\d{2}-[A-Za-z]{3,9}-\d{4})\s+.{1,120}?\s+[\d,]+\.\d{2}\s*(dr|cr|debit|credit)\b/gi
+  const transactionLikeMatches = raw.match(transactionLikeRegex) || []
+  const hasSomeTransactionPattern = transactionLikeMatches.length >= 1
+  const hasManyTransactionPatterns = transactionLikeMatches.length >= 3
+
+  if (keywordHits >= 3) return true
+  if (keywordHits >= 2 && hasSomeTransactionPattern) return true
+  if (hasManyTransactionPatterns) return true
+  return false
+}
+
+function parseAmountToken(rawValue) {
+  const numeric = Number.parseFloat(String(rawValue || "").replace(/,/g, ""))
+  if (!Number.isFinite(numeric)) return null
+  return Math.round(numeric * 100) / 100
+}
+
+function parseSignedBalanceFromChunk(chunk) {
+  const text = String(chunk || "").trim()
+  const balanceMatch = text.match(/([\d,]+\.\d{2})\s*(Cr|Dr)\s*$/i)
+  if (!balanceMatch) return null
+
+  const amount = parseAmountToken(balanceMatch[1])
+  if (!Number.isFinite(amount)) return null
+
+  const marker = String(balanceMatch[2] || "").toLowerCase()
+  return marker === "dr" ? -amount : amount
+}
+
+function normalizeTransactionDescription(chunk, dateToken) {
+  return String(chunk || "")
+    .replace(new RegExp(String(dateToken || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), " ")
+    .replace(/[\d,]+\.\d{2}\s*(Cr|Dr|Debit|Credit)?/gi, " ")
+    .replace(/\b\d+\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function extractStatementTransactions(text) {
+  const rawText = String(text || "")
+  const extracted = []
+  let creditSkipped = 0
+  const seen = new Set()
+
+  const addIfUnique = (tx) => {
+    if (!tx || !tx.date || !Number.isFinite(tx.amount) || tx.amount <= 0) return
+    const descriptionKey = String(tx.description || "")
+      .toLowerCase()
+      .replace(/[^a-z]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 80)
+    const dedupeKey = `${tx.date}|${tx.amount.toFixed(2)}|${descriptionKey}`
+    if (seen.has(dedupeKey)) return
+    seen.add(dedupeKey)
+    extracted.push(tx)
+  }
+
+  // Strategy 1: Classic inline rows with explicit Dr/Cr marker.
+  const explicitRegex = /(\d{2}[/-]\d{2}[/-]\d{4}|\d{2}-[A-Za-z]{3,9}-\d{4})\s+(.+?)\s+([\d,]+\.\d{2})\s*(Dr|Cr|Debit|Credit)\b/gi
+  let explicitMatch
+  while ((explicitMatch = explicitRegex.exec(rawText)) !== null) {
+    const parsedDate = parseStatementTransactionDate(explicitMatch[1])
+    if (!parsedDate) continue
+
+    const amount = parseAmountToken(explicitMatch[3])
+    if (!Number.isFinite(amount) || amount <= 0 || amount > 100000000) continue
+
+    const marker = String(explicitMatch[4] || "").trim().toLowerCase()
+    const isCredit = marker === "cr" || marker === "credit"
+    if (isCredit) {
+      creditSkipped++
+      continue
+    }
+
+    const description = String(explicitMatch[2] || "").replace(/\s+/g, " ").trim() || "Bank transaction"
+    if (HEADER_NOISE_REGEX.test(description)) continue
+
+    addIfUnique({
+      date: parsedDate,
+      amount,
+      description,
+      strategy: "explicit_marker"
+    })
+  }
+
+  // Strategy 2: Chunk-by-date parser for table-like statements using running balance delta.
+  const dateRegex = /\b(\d{2}[/-]\d{2}[/-]\d{4}|\d{2}-[A-Za-z]{3,9}-\d{4})\b/gi
+  const dateMatches = Array.from(rawText.matchAll(dateRegex))
+  let previousBalance = null
+
+  for (let i = 0; i < dateMatches.length; i++) {
+    const current = dateMatches[i]
+    const next = dateMatches[i + 1]
+    const dateToken = current[1]
+    const parsedDate = parseStatementTransactionDate(dateToken)
+    if (!parsedDate) continue
+
+    const start = current.index ?? 0
+    const end = next ? (next.index ?? rawText.length) : rawText.length
+    let chunk = rawText.slice(start, end).replace(/\s+/g, " ").trim()
+    if (!chunk || chunk.length < 10) continue
+
+    const amounts = (chunk.match(/[\d,]+\.\d{2}/g) || [])
+      .map((token) => parseAmountToken(token))
+      .filter((value) => Number.isFinite(value))
+
+    if (amounts.length === 0) {
+      continue
+    }
+
+    const currentBalance = parseSignedBalanceFromChunk(chunk)
+    let transactionAmount = null
+    if (currentBalance !== null && amounts.length >= 2) {
+      transactionAmount = amounts[amounts.length - 2]
+    } else {
+      transactionAmount = amounts[amounts.length - 1]
+    }
+
+    if (!Number.isFinite(transactionAmount) || transactionAmount <= 0 || transactionAmount > 100000000) {
+      if (currentBalance !== null) previousBalance = currentBalance
+      continue
+    }
+
+    let isCredit = null
+    if (currentBalance !== null && previousBalance !== null) {
+      const delta = Number((currentBalance - previousBalance).toFixed(2))
+      const tolerance = Math.max(1, transactionAmount * 0.02)
+      if (Math.abs(Math.abs(delta) - transactionAmount) <= tolerance) {
+        isCredit = delta > 0
+      }
+    }
+
+    const chunkLower = chunk.toLowerCase()
+    const description = normalizeTransactionDescription(chunk, dateToken) || "Bank transaction"
+
+    if (isCredit === null) {
+      const explicitCredit = /\b(cr|credit)\b/i.test(chunkLower)
+      const explicitDebit = /\b(dr|debit|withdrawal)\b/i.test(chunkLower)
+      if (explicitCredit && !explicitDebit) isCredit = true
+      else if (explicitDebit && !explicitCredit) isCredit = false
+      else if (CREDIT_DESCRIPTION_HINT_REGEX.test(description)) isCredit = true
+    }
+
+    if (currentBalance !== null) {
+      previousBalance = currentBalance
+    }
+
+    if (isCredit === true) {
+      creditSkipped++
+      continue
+    }
+    if (HEADER_NOISE_REGEX.test(description)) continue
+
+    addIfUnique({
+      date: parsedDate,
+      amount: transactionAmount,
+      description,
+      strategy: "balance_chunk"
+    })
+  }
+
+  return {
+    transactions: extracted,
+    skippedCredits: creditSkipped
+  }
+}
+
+function classifyExpenseFromDescription(description) {
+  const descUpper = String(description || "").toUpperCase()
+  let category = "Other - Variable"
+  let nature = "Variable"
+
+  if (descUpper.match(/ZOMATO|SWIGGY|EATCLUB|RESTAURANT|FOOD|CAFE/)) {
+    category = "Food and Groceries"; nature = "Variable"
+  } else if (descUpper.match(/AMAZON|FLIPKART|MYNTRA|RETAIL|SHOPPING|DMART/)) {
+    category = "Shopping"; nature = "Discretionary"
+  } else if (descUpper.match(/NETFLIX|HOTSTAR|SPOTIFY|YOUTUBE|PRIME/)) {
+    category = "Subscriptions"; nature = "Discretionary"
+  } else if (descUpper.match(/BOOKMYSHOW|THEATRE|PVR|INOX/)) {
+    category = "Entertainment"; nature = "Discretionary"
+  } else if (descUpper.match(/AIRTEL|JIO|ELECTRICITY|WATER|BESCOM|INTERNET/)) {
+    category = "Utilities"; nature = "Variable"
+  } else if (descUpper.match(/BILL|RECHARGE/)) {
+    category = "Utilities"; nature = "Variable"
+  } else if (descUpper.match(/UBER|OLA|PETROL|SHELL|FUEL|METRO|RAPIDO/)) {
+    category = "Transport"; nature = "Variable"
+  } else if (descUpper.match(/MAKEMYTRIP|IRCTC|AIRLINES|FLIGHT|HOTEL|GOIBIBO/)) {
+    category = "Travel"; nature = "Discretionary"
+  } else if (descUpper.match(/RENT|SOCIETY|MAINTENANCE/)) {
+    category = "Rent"; nature = "Fixed"
+  } else if (descUpper.match(/EMI|LOAN|BAJAJ|HDFC LOAN|ICICI LOAN/)) {
+    category = "EMI"; nature = "Fixed"
+  } else if (descUpper.match(/LIC|INSURANCE|PREMIUM/)) {
+    category = "Insurance"; nature = "Fixed"
+  } else if (descUpper.match(/HOSPITAL|PHARMACY|MEDICAL|APOLLO|CLINIC/)) {
+    category = "Medical"; nature = "Variable"
+  } else if (descUpper.match(/ZOMATO.*DINING|SWIGGY.*DINE|RESTAURANT.*SIT/)) {
+    category = "Dining Out"; nature = "Discretionary"
+  }
+
+  return { category, nature }
+}
+
+async function insertExpenseIfNotDuplicate({
+  userId,
+  amount,
+  category,
+  date,
+  note,
+  nature
+}) {
+  const result = await pool.query(
+    `INSERT INTO expenses (user_id, amount, category, date, note, nature)
+     SELECT $1::int, $2::numeric, $3::text, $4::date, $5::text, $6::text
+     WHERE NOT EXISTS (
+       SELECT 1
+       FROM expenses
+       WHERE user_id = $1
+         AND date::date = $4::date
+         AND ROUND(CAST(amount AS numeric), 2) = ROUND(CAST($2 AS numeric), 2)
+         AND LOWER(TRIM(COALESCE(note, ''))) = LOWER(TRIM(COALESCE($5::text, '')))
+      )
+      RETURNING *`,
+    [userId, amount, category, date, note, nature]
+  )
+
+  return result.rows[0] || null
+}
+
 /* =========================================
     AUTH ROUTES
     ========================================= */
@@ -546,7 +1023,7 @@ app.post("/survey", async (req, res) => {
       age_group, occupation, income_range, savings_percent,
       investment_experience, instruments_used_count, financial_comfort,
       loss_reaction, return_priority, volatility_comfort,
-      goal, time_horizon, risk_label
+      risk_label
     } = req.body
 
     const toInt = (value, fallback = null) => {
@@ -577,8 +1054,6 @@ app.post("/survey", async (req, res) => {
       loss_reaction: toInt(loss_reaction),
       return_priority: toInt(return_priority),
       volatility_comfort: toInt(volatility_comfort),
-      goal: String(goal || "").trim(),
-      time_horizon: toInt(time_horizon),
       risk_label: toRiskLabelInt(risk_label)
     }
 
@@ -591,7 +1066,6 @@ app.post("/survey", async (req, res) => {
       "loss_reaction",
       "return_priority",
       "volatility_comfort",
-      "time_horizon",
       "risk_label"
     ]
 
@@ -604,9 +1078,6 @@ app.post("/survey", async (req, res) => {
     if (!parsedPayload.occupation) {
       return res.status(400).json({ message: "Invalid survey field: occupation" })
     }
-    if (!parsedPayload.goal) {
-      return res.status(400).json({ message: "Invalid survey field: goal" })
-    }
 
     await client.query("BEGIN")
     txStarted = true
@@ -615,9 +1086,9 @@ app.post("/survey", async (req, res) => {
       `INSERT INTO questionnaire_responses
        (user_id, age_group, occupation, income_range, savings_percent,
         investment_experience, instruments_used_count, financial_comfort,
-        loss_reaction, return_priority, volatility_comfort, goal, time_horizon, risk_label)
+        loss_reaction, return_priority, volatility_comfort, risk_label)
        VALUES
-       ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+       ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
       [
         req.session.user_id,
         parsedPayload.age_group,
@@ -630,8 +1101,6 @@ app.post("/survey", async (req, res) => {
         parsedPayload.loss_reaction,
         parsedPayload.return_priority,
         parsedPayload.volatility_comfort,
-        parsedPayload.goal,
-        parsedPayload.time_horizon,
         parsedPayload.risk_label
       ]
     )
@@ -640,14 +1109,14 @@ app.post("/survey", async (req, res) => {
       `UPDATE newusers 
        SET age_group=$1, occupation=$2, annual_income_range=$3, savings_percent=$4, 
            investment_experience=$5, instruments_used_count=$6, financial_comfort=$7,
-           loss_reaction=$8, return_priority=$9, volatility_comfort=$10,
-           goal=$11, time_horizon=$12, risk_label=$13, questionnaire_completed=TRUE 
-       WHERE id=$14`,
+           loss_reaction=$8, return_priority=$9, volatility_comfort=$10, risk_label=$11,
+           questionnaire_completed=TRUE 
+       WHERE id=$12`,
       [
         parsedPayload.age_group, parsedPayload.occupation, parsedPayload.annual_income_range, parsedPayload.savings_percent,
         parsedPayload.investment_experience, parsedPayload.instruments_used_count, parsedPayload.financial_comfort,
         parsedPayload.loss_reaction, parsedPayload.return_priority, parsedPayload.volatility_comfort,
-        parsedPayload.goal, parsedPayload.time_horizon, parsedPayload.risk_label,
+        parsedPayload.risk_label,
         req.session.user_id
       ]
     )
@@ -675,7 +1144,7 @@ app.get("/api/user-survey-profile", async (req, res) => {
 
   try {
     const result = await pool.query(
-      `SELECT age_group, occupation, annual_income_range, savings_percent, goal, time_horizon, risk_label, questionnaire_completed
+      `SELECT age_group, occupation, annual_income_range, savings_percent, risk_label, questionnaire_completed
        FROM newusers
        WHERE id = $1`,
       [req.session.user_id]
@@ -698,8 +1167,8 @@ app.get("/api/user-survey-profile", async (req, res) => {
       savings_percent: user.savings_percent,
       savings_ratio: Number(savingsRatio.toFixed(4)),
       risk_label: user.risk_label,
-      goal: user.goal,
-      time_horizon: user.time_horizon
+      goal: "Wealth",
+      time_horizon: 2
     })
   } catch (err) {
     console.error("SURVEY PROFILE ERROR:", err)
@@ -857,10 +1326,20 @@ app.get("/api/expenses/breakdown", async (req, res) => {
 
   try {
     const result = await pool.query(
-      `SELECT category, SUM(amount) as total 
-       FROM expenses 
-       WHERE user_id = $1 AND date >= DATE_TRUNC('month', CURRENT_DATE)
-       GROUP BY category`,
+      `WITH latest_month AS (
+         SELECT DATE_TRUNC('month', MAX(date::date)) AS month_start
+         FROM expenses
+         WHERE user_id = $1
+           AND date::date <= CURRENT_DATE
+       )
+       SELECT e.category, SUM(e.amount) AS total
+       FROM expenses e
+       CROSS JOIN latest_month lm
+       WHERE e.user_id = $1
+         AND e.date::date <= CURRENT_DATE
+         AND lm.month_start IS NOT NULL
+         AND DATE_TRUNC('month', e.date::date) = lm.month_start
+       GROUP BY e.category`,
       [req.session.user_id]
     )
     res.json(result.rows)
@@ -878,7 +1357,9 @@ app.get("/api/expenses/weekly", async (req, res) => {
     const result = await pool.query(
       `SELECT TO_CHAR(date, 'Day') as day_name, SUM(amount) as total, EXTRACT(DOW FROM date) as day_idx
        FROM expenses 
-       WHERE user_id = $1 AND date >= DATE_TRUNC('week', CURRENT_DATE)
+       WHERE user_id = $1
+         AND date::date >= DATE_TRUNC('week', CURRENT_DATE)::date
+         AND date::date <= CURRENT_DATE
        GROUP BY day_name, day_idx
        ORDER BY day_idx`,
       [req.session.user_id]
@@ -896,7 +1377,7 @@ app.get("/api/expenses", async (req, res) => {
 
   try {
     const result = await pool.query(
-      "SELECT * FROM expenses WHERE user_id = $1 ORDER BY date DESC, id DESC",
+      "SELECT * FROM expenses WHERE user_id = $1 AND date::date <= CURRENT_DATE ORDER BY date DESC, id DESC",
       [req.session.user_id]
     )
     res.json(result.rows)
@@ -909,17 +1390,125 @@ app.get("/api/expenses", async (req, res) => {
 app.post("/api/expenses", async (req, res) => {
   if (!req.session.user_id) return res.status(401).json({ message: "Unauthorized" })
 
-  const { amount, category, date, note, nature } = req.body
+  const validation = validateExpensePayload(req.body)
+  if (!validation.ok) return res.status(400).json({ message: validation.error })
+
+  const { amount, category, date, note, nature } = validation.value
+
+  try {
+    const inserted = await insertExpenseIfNotDuplicate({
+      userId: req.session.user_id,
+      amount,
+      category,
+      date,
+      note,
+      nature
+    })
+
+    if (!inserted) {
+      return res.status(409).json({ message: "This expense already exists" })
+    }
+
+    res.json(inserted)
+  } catch (err) {
+    res.status(500).json({ message: "Failed to add expense" })
+  }
+})
+
+/* Get Monthly Totals (Only existing months in DB) */
+app.get("/api/expenses/monthly", async (req, res) => {
+  if (!req.session.user_id) return res.status(401).json({ message: "Unauthorized" })
 
   try {
     const result = await pool.query(
-      `INSERT INTO expenses (user_id, amount, category, date, note, nature) 
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [req.session.user_id, amount, category, date, note, nature]
+      `SELECT TO_CHAR(DATE_TRUNC('month', date::date), 'YYYY-MM') AS month,
+              SUM(amount) AS total
+       FROM expenses
+       WHERE user_id = $1
+         AND date::date <= CURRENT_DATE
+       GROUP BY DATE_TRUNC('month', date::date)
+       ORDER BY month`,
+      [req.session.user_id]
     )
+
+    res.json(result.rows)
+  } catch (err) {
+    console.error("Monthly Expense Error:", err)
+    res.status(500).json({ message: "Database error" })
+  }
+})
+
+/* Update Expense */
+app.put("/api/expenses/:id", async (req, res) => {
+  if (!req.session.user_id) return res.status(401).json({ message: "Unauthorized" })
+
+  const expenseId = Number.parseInt(req.params.id, 10)
+  if (!Number.isInteger(expenseId) || expenseId <= 0) {
+    return res.status(400).json({ message: "Invalid expense id" })
+  }
+
+  const validation = validateExpensePayload(req.body)
+  if (!validation.ok) return res.status(400).json({ message: validation.error })
+
+  const { amount, category, date, note, nature } = validation.value
+
+  try {
+    const duplicate = await pool.query(
+      `SELECT id
+       FROM expenses
+       WHERE user_id = $1
+         AND id <> $2
+         AND date::date = $3::date
+         AND ROUND(CAST(amount AS numeric), 2) = ROUND(CAST($4 AS numeric), 2)
+         AND LOWER(TRIM(COALESCE(note, ''))) = LOWER(TRIM(COALESCE($5::text, '')))
+       LIMIT 1`,
+      [req.session.user_id, expenseId, date, amount, note]
+    )
+
+    if (duplicate.rows.length) {
+      return res.status(409).json({ message: "Another expense with same details already exists" })
+    }
+
+    const result = await pool.query(
+      `UPDATE expenses
+       SET amount = $1, category = $2, date = $3, note = $4, nature = $5
+       WHERE id = $6 AND user_id = $7
+       RETURNING *`,
+      [amount, category, date, note, nature, expenseId, req.session.user_id]
+    )
+
+    if (!result.rows.length) {
+      return res.status(404).json({ message: "Expense not found" })
+    }
+
     res.json(result.rows[0])
   } catch (err) {
-    res.status(500).json({ message: "Failed to add expense" })
+    res.status(500).json({ message: "Failed to update expense" })
+  }
+})
+
+/* Delete Expense */
+app.delete("/api/expenses/:id", async (req, res) => {
+  if (!req.session.user_id) return res.status(401).json({ message: "Unauthorized" })
+
+  const expenseId = Number.parseInt(req.params.id, 10)
+  if (!Number.isInteger(expenseId) || expenseId <= 0) {
+    return res.status(400).json({ message: "Invalid expense id" })
+  }
+
+  try {
+    const result = await pool.query(
+      "DELETE FROM expenses WHERE id = $1 AND user_id = $2 RETURNING id",
+      [expenseId, req.session.user_id]
+    )
+
+    if (!result.rows.length) {
+      return res.status(404).json({ message: "Expense not found" })
+    }
+
+    res.json({ message: "Expense deleted" })
+  } catch (err) {
+    res.status(500).json({ message: "Failed to delete expense" })
   }
 })
 
@@ -942,8 +1531,10 @@ app.get("/api/sync-emails", async (req, res) => {
     ]
 
     let foundCount = 0
+    let duplicateCount = 0
     const amountRegex = /(?:Rs|INR)\.?\s*(\d+(?:,\d+)*(?:\.\d{1,2})?)/i
     const merchantRegex = /at\s+([A-Z\s]+)\s+on/i
+    const emailDateRegex = /on\s+(\d{1,2})[-\s]([A-Za-z]{3,9})(?:[-\s](\d{4}))?/i
 
     for (let email of rawEmails) {
       const amountMatch = email.body.match(amountRegex)
@@ -952,26 +1543,62 @@ app.get("/api/sync-emails", async (req, res) => {
         const amount = parseFloat(amountMatch[1].replace(/,/g, ''))
         const merchantMatch = email.body.match(merchantRegex)
         const merchant = merchantMatch ? merchantMatch[1].trim() : "Auto-Debit"
+        const dateMatch = email.body.match(emailDateRegex)
+        const now = new Date()
+
+        let txDate = formatDateOnly(getTodayDateOnly())
+        if (dateMatch) {
+          const day = Number(dateMatch[1])
+          const month = MONTH_LOOKUP[String(dateMatch[2] || "").toLowerCase()]
+          const year = Number(dateMatch[3] || now.getFullYear())
+          const candidate = new Date(year, (month || 1) - 1, day)
+          if (
+            Number.isFinite(day) &&
+            Number.isFinite(month) &&
+            Number.isFinite(year) &&
+            !Number.isNaN(candidate.getTime()) &&
+            candidate.getDate() === day &&
+            candidate.getMonth() === month - 1 &&
+            candidate.getFullYear() === year &&
+            candidate.getTime() <= getTodayDateOnly().getTime()
+          ) {
+            txDate = formatDateOnly(candidate)
+          }
+        }
 
         let category = "Shopping"
         let nature = "Discretionary"
 
         if (merchant.includes("ZOMATO") || merchant.includes("SWIGGY")) {
-          category = "Food"
+          category = "Food and Groceries"
           nature = "Variable"
+        } else if (merchant.includes("AMAZON") || merchant.includes("FLIPKART")) {
+          category = "Shopping"
+          nature = "Discretionary"
+        } else if (merchant.includes("NETFLIX") || merchant.includes("HOTSTAR") || merchant.includes("SPOTIFY")) {
+          category = "Subscriptions"
+          nature = "Discretionary"
         }
 
-        await pool.query(
-          `INSERT INTO expenses (user_id, amount, category, note, nature, date) 
-            VALUES ($1, $2, $3, $4, $5, CURRENT_DATE)`,
-          [req.session.user_id, amount, category, `Auto-synced: ${merchant}`, nature]
-        )
+        const inserted = await insertExpenseIfNotDuplicate({
+          userId: req.session.user_id,
+          amount,
+          category,
+          date: txDate,
+          note: `Auto-synced: ${merchant}`,
+          nature
+        })
 
-        foundCount++
+        if (inserted) foundCount++
+        else duplicateCount++
       }
     }
 
-    res.json({ message: "Sync complete", found_transactions: foundCount })
+    res.json({
+      message: "Sync complete",
+      found_transactions: foundCount,
+      duplicates_skipped: duplicateCount
+    })
   } catch (err) {
     console.error("Email Sync Error:", err)
     res.status(500).json({ message: "Failed to scan emails" })
@@ -982,53 +1609,150 @@ app.get("/api/sync-emails", async (req, res) => {
 app.post("/api/upload-statement", upload.single("statement"), async (req, res) => {
   if (!req.session.user_id) return res.status(401).json({ message: "Unauthorized" })
   if (!req.file) return res.status(400).json({ message: "No file uploaded" })
+  if (!String(req.file.mimetype || "").toLowerCase().includes("pdf")) {
+    return res.status(400).json({ message: "Only PDF statements are supported" })
+  }
+  if (Number(req.file.size || 0) > MAX_STATEMENT_SIZE_BYTES) {
+    return res.status(400).json({ message: "Statement is too large (max 8MB)" })
+  }
 
   try {
     const pdfData = await pdfParse(req.file.buffer)
     const text = pdfData.text
+    if (!hasLikelyBankStatementContent(text)) {
+      return res.status(400).json({
+        message: "Uploaded file does not appear to be a valid bank statement"
+      })
+    }
 
-    let foundCount = 0
-    const transactionRegex = /(\d{2}\/\d{2}\/\d{4}|\d{2}-[A-Za-z]{3}-\d{4})\s+(.+?)\s+([\d,]+\.\d{2})\s*(Dr|Cr)?/gi
+    const filenameMonthYear = inferMonthYearFromFileName(req.file.originalname)
+    if (filenameMonthYear && isFutureMonthYear(filenameMonthYear.year, filenameMonthYear.month)) {
+      return res.status(400).json({
+        message: "Future month statements are not allowed"
+      })
+    }
 
-    let match
-    while ((match = transactionRegex.exec(text)) !== null) {
-      const isCredit = match[4] && match[4].toLowerCase() === 'cr'
+    const statementHash = crypto
+      .createHash("sha256")
+      .update(req.file.buffer)
+      .digest("hex")
+    const statementTag = `PDFHASH:${statementHash}`
 
-      if (!isCredit) {
-        const description = match[2].trim()
-        const amount = parseFloat(match[3].replace(/,/g, ''))
+    const existingUpload = await pool.query(
+      `SELECT 1
+       FROM expenses
+       WHERE user_id = $1 AND note LIKE $2
+       LIMIT 1`,
+      [req.session.user_id, `${statementTag}%`]
+    )
 
-        const descUpper = description.toUpperCase()
-        let category = "Miscellaneous"
-        let nature = "Variable"
+    if (existingUpload.rows.length) {
+      return res.status(409).json({
+        message: "This bank statement has already been uploaded",
+        found_transactions: 0,
+        duplicates_skipped: 0
+      })
+    }
 
-        if (descUpper.match(/ZOMATO|SWIGGY|EATCLUB|RESTAURANT|FOOD|CAFE/)) {
-          category = "Food"; nature = "Variable"
-        } else if (descUpper.match(/AMAZON|FLIPKART|MYNTRA|RETAIL|SHOPPING|DMART/)) {
-          category = "Shopping"; nature = "Discretionary"
-        } else if (descUpper.match(/NETFLIX|HOTSTAR|SPOTIFY|BOOKMYSHOW|THEATRE|YOUTUBE/)) {
-          category = "Entertainment"; nature = "Discretionary"
-        } else if (descUpper.match(/AIRTEL|JIO|ELECTRICITY|WATER|BESCOM|BILL|RECHARGE/)) {
-          category = "Utilities"; nature = "Fixed"
-        } else if (descUpper.match(/UBER|OLA|PETROL|SHELL|FUEL|METRO|RAPIDO/)) {
-          category = "Travel"; nature = "Variable"
-        } else if (descUpper.match(/RENT|SOCIETY|MAINTENANCE/)) {
-          category = "Rent"; nature = "Fixed"
-        } else if (descUpper.match(/LIC|INSURANCE|PREMIUM/)) {
-          category = "Insurance"; nature = "Fixed"
-        }
+    const extraction = extractStatementTransactions(text)
+    const extractedTransactions = Array.isArray(extraction.transactions) ? extraction.transactions : []
+    const parsedTransactions = []
+    let skippedCredits = Number(extraction.skippedCredits || 0)
+    let skippedInvalid = 0
+    let skippedFuture = 0
 
-        await pool.query(
-          `INSERT INTO expenses (user_id, amount, category, note, nature, date) 
-            VALUES ($1, $2, $3, $4, $5, NOW())`,
-          [req.session.user_id, amount, category, `PDF: ${description.substring(0, 45)}`, nature]
-        )
+    for (const tx of extractedTransactions) {
+      const transactionDate = tx.date
+      const txDateObj = parseYmdDate(transactionDate)
+      if (!txDateObj || txDateObj.getTime() > getTodayDateOnly().getTime()) {
+        skippedFuture++
+        continue
+      }
 
-        foundCount++
+      const amount = Number(tx.amount)
+      if (!Number.isFinite(amount) || amount <= 0 || amount > 100000000) {
+        skippedInvalid++
+        continue
+      }
+
+      const description = String(tx.description || "Bank transaction").replace(/\s+/g, " ").trim()
+      const safeDescription = description.substring(0, 80)
+      const { category, nature } = classifyExpenseFromDescription(description)
+      const note = `${statementTag}|PDF: ${safeDescription}`.substring(0, MAX_EXPENSE_NOTE_LENGTH)
+
+      parsedTransactions.push({
+        amount: Math.round(amount * 100) / 100,
+        category,
+        note,
+        nature,
+        date: transactionDate
+      })
+    }
+
+    if (parsedTransactions.length === 0) {
+      return res.status(400).json({
+        message: "No valid debit transactions found in statement",
+        skipped_credits: skippedCredits,
+        skipped_invalid: skippedInvalid,
+        skipped_future: skippedFuture
+      })
+    }
+
+    const monthCounts = new Map()
+    for (const tx of parsedTransactions) {
+      const ym = tx.date.slice(0, 7)
+      monthCounts.set(ym, (monthCounts.get(ym) || 0) + 1)
+    }
+    const dominantMonth = Array.from(monthCounts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0]
+    const currentMonth = formatDateOnly(getTodayDateOnly()).slice(0, 7)
+
+    if (dominantMonth && dominantMonth > currentMonth) {
+      return res.status(400).json({
+        message: "Future month statements are not allowed"
+      })
+    }
+
+    if (filenameMonthYear) {
+      const hasExpectedMonth = parsedTransactions.some((tx) => tx.date.startsWith(filenameMonthYear.ym))
+      if (!hasExpectedMonth) {
+        return res.status(400).json({
+          message: "Statement month does not match the transaction dates in the PDF"
+        })
       }
     }
 
-    res.json({ message: "PDF Processed", found_transactions: foundCount })
+    let insertedCount = 0
+    let duplicateCount = 0
+    for (const tx of parsedTransactions) {
+      const inserted = await insertExpenseIfNotDuplicate({
+        userId: req.session.user_id,
+        amount: tx.amount,
+        category: tx.category,
+        date: tx.date,
+        note: tx.note,
+        nature: tx.nature
+      })
+
+      if (inserted) insertedCount++
+      else duplicateCount++
+    }
+
+    if (!insertedCount && duplicateCount > 0) {
+      return res.status(200).json({
+        message: "No new transactions were added. This statement may already be imported.",
+        found_transactions: 0,
+        duplicates_skipped: duplicateCount
+      })
+    }
+
+    res.json({
+      message: "PDF processed successfully",
+      found_transactions: insertedCount,
+      duplicates_skipped: duplicateCount,
+      skipped_credits: skippedCredits,
+      skipped_invalid: skippedInvalid,
+      skipped_future: skippedFuture
+    })
   } catch (err) {
     console.error("PDF Parsing Error:", err)
     res.status(500).json({ message: "Failed to parse PDF" })
@@ -1197,7 +1921,7 @@ app.get("/api/dashboard-summary", async (req, res) => {
 
     // Fetch recent expenses
     const expenses = (await pool.query(
-      "SELECT amount, category, date FROM expenses WHERE user_id = $1 ORDER BY date DESC LIMIT 5",
+      "SELECT amount, category, date FROM expenses WHERE user_id = $1 AND date::date <= CURRENT_DATE ORDER BY date DESC LIMIT 5",
       [req.session.user_id]
     )).rows
 
@@ -1234,7 +1958,7 @@ app.post("/api/get-recommendations", async (req, res) => {
 
   try {
     const userResult = await pool.query(
-      `SELECT occupation, annual_income_range, savings_percent, risk_label, goal, time_horizon
+      `SELECT occupation, annual_income_range, savings_percent, risk_label
        FROM newusers
        WHERE id = $1`,
       [req.session.user_id]
@@ -1246,8 +1970,8 @@ app.post("/api/get-recommendations", async (req, res) => {
       annual_income_estimate: annualIncomeFromRange(user.annual_income_range),
       savings_ratio: savingsRatioFromBucket(user.savings_percent),
       risk_label: Number(user.risk_label) || 3,
-      primary_goal: user.goal || "Wealth",
-      time_horizon: Number(user.time_horizon) || 2
+      primary_goal: "Wealth",
+      time_horizon: 2
     }
 
     const payload = {
@@ -1269,14 +1993,24 @@ app.get("/api/get-financial-profile", async (req, res) => {
   if (!req.session.user_id) return res.status(401).json({ message: "Unauthorized" })
 
   try {
-    const expenses = await pool.query(
-      "SELECT date as timestamp, category, amount FROM expenses WHERE user_id = $1",
-      [req.session.user_id]
-    )
+    const [expenses, userResult] = await Promise.all([
+      pool.query(
+        "SELECT date as timestamp, category, amount FROM expenses WHERE user_id = $1 AND date::date <= CURRENT_DATE",
+        [req.session.user_id]
+      ),
+      pool.query(
+        "SELECT annual_income_range FROM newusers WHERE id = $1",
+        [req.session.user_id]
+      )
+    ])
+
+    const annualIncome = annualIncomeFromRange(userResult.rows[0]?.annual_income_range)
+    const monthlyIncome = annualIncome > 0 ? Math.round(annualIncome / 12) : 0
 
     const pythonRes = await axios.post("http://localhost:8000/analyze-financial-profile", {
       user_id: req.session.user_id.toString(),
-      expenses: expenses.rows
+      expenses: expenses.rows,
+      monthly_income: monthlyIncome
     })
 
     res.json(pythonRes.data)
@@ -1291,7 +2025,7 @@ app.get("/api/ai-analysis", async (req, res) => {
 
   try {
     const expenses = await pool.query(
-      "SELECT date as timestamp, category, amount FROM expenses WHERE user_id = $1",
+      "SELECT date as timestamp, category, amount FROM expenses WHERE user_id = $1 AND date::date <= CURRENT_DATE",
       [req.session.user_id]
     )
 
@@ -1361,16 +2095,18 @@ function mapExpenseCategoryToHabitCategory(category) {
   const raw = String(category || "").trim().toLowerCase()
 
   if (["rent", "home rent"].includes(raw)) return "rent"
+  if (["emi"].includes(raw)) return "rent"
   if (["insurance", "lic"].includes(raw)) return "insurance"
-  if (["loan", "emi", "loan payments"].includes(raw)) return "loan payments"
-  if (["food", "food and groceries", "groceries"].includes(raw)) return "food and groceries"
+  if (["loan payments", "loan"].includes(raw)) return "loan payments"
+  if (["food and groceries", "food", "groceries"].includes(raw)) return "food and groceries"
   if (["utilities", "electricity", "water", "gas", "internet"].includes(raw)) return "utilities"
-  if (["travel", "transport", "fuel", "petrol", "uber", "ola"].includes(raw)) return "transport"
+  if (["transport", "travel", "fuel", "petrol", "uber", "ola"].includes(raw)) return "transport"
   if (["medical", "healthcare", "medicine"].includes(raw)) return "medical"
-  if (["dining out", "dinning out", "restaurant"].includes(raw)) return "dinning out"
+  if (["dining out", "dinning out", "restaurant"].includes(raw)) return "dining out"
   if (["shopping", "retail"].includes(raw)) return "shopping"
   if (["entertainment", "movies"].includes(raw)) return "entertainment"
   if (["subscriptions", "subscription"].includes(raw)) return "subscriptions"
+  if (raw.startsWith("other")) return "shopping"
 
   return "shopping"
 }
@@ -1397,6 +2133,8 @@ app.get("/api/habit-goalconflict", async (req, res) => {
         `SELECT amount, category, date
          FROM expenses
          WHERE user_id = $1
+           AND date::date <= CURRENT_DATE
+           AND COALESCE(nature, 'Variable') != 'Fixed'
          ORDER BY date DESC`,
         [req.session.user_id]
       ),
@@ -1408,7 +2146,7 @@ app.get("/api/habit-goalconflict", async (req, res) => {
         [req.session.user_id]
       ),
       pool.query(
-        `SELECT annual_income_range, savings_percent, occupation, risk_label, goal, time_horizon
+        `SELECT annual_income_range, savings_percent, occupation, risk_label
          FROM newusers
          WHERE id = $1`,
         [req.session.user_id]
@@ -1510,8 +2248,8 @@ app.get("/api/habit-goalconflict", async (req, res) => {
       profile_context: {
         occupation: user.occupation || "Other",
         risk_label: Number(user.risk_label || 3),
-        primary_goal: user.goal || "Wealth",
-        time_horizon: Number(user.time_horizon || 2)
+        primary_goal: "Wealth",
+        time_horizon: 2
       }
     }
 

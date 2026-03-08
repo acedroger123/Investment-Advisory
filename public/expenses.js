@@ -1,17 +1,25 @@
 document.addEventListener("DOMContentLoaded", () => {
-  // --- DOM ELEMENTS (Updated IDs to match new white box) ---
   const modal = document.getElementById("addModal");
   const openBtn = document.getElementById("openAddModal");
-  // Updated to match the top-right 'X' icon
   const closeBtn = document.getElementById("closeModalIcon");
+  const cancelBtn = document.getElementById("cancelModal");
+  const overlay = document.getElementById("modalOverlay");
   const form = document.getElementById("expenseForm");
   const list = document.getElementById("expenseList");
   const syncBtn = document.getElementById("syncGmailBtn");
+  const uploadPdfBtn = document.getElementById("uploadPdfBtn");
+  const pdfInput = document.getElementById("pdfUploadInput");
   const aiInsightsContainer = document.getElementById("ai-insights-container");
   const habitText = document.getElementById("habitText");
+  const modalTitle = document.getElementById("expenseModalTitle");
+  const saveExpenseBtn = document.getElementById("saveExpenseBtn");
+  const categoryInput = document.getElementById("category");
+  const amountInput = document.getElementById("amount");
+  const dateInput = document.getElementById("date");
+  const noteInput = document.getElementById("note");
 
-  // State to hold real expenses from Database
   let expenses = [];
+  let editingExpenseId = null;
 
   const escapeHtml = (value) =>
     String(value ?? "")
@@ -27,6 +35,61 @@ document.addEventListener("DOMContentLoaded", () => {
     return `₹${amount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
   };
 
+  const todayDateOnly = () => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  };
+
+  const toInputDate = (value) => {
+    if (!value) return "";
+    const raw = String(value);
+    const ymdMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (ymdMatch) return `${ymdMatch[1]}-${ymdMatch[2]}-${ymdMatch[3]}`;
+
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return "";
+
+    const yyyy = parsed.getFullYear();
+    const mm = String(parsed.getMonth() + 1).padStart(2, "0");
+    const dd = String(parsed.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const parseDateOnly = (value) => {
+    const raw = String(value ?? "").trim();
+    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      const y = Number(match[1]);
+      const m = Number(match[2]);
+      const d = Number(match[3]);
+      const dateObj = new Date(y, m - 1, d);
+      if (
+        !Number.isNaN(dateObj.getTime()) &&
+        dateObj.getFullYear() === y &&
+        dateObj.getMonth() === m - 1 &&
+        dateObj.getDate() === d
+      ) {
+        return dateObj;
+      }
+      return null;
+    }
+
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  };
+
+  const inferNature = (category) => {
+    const fixedCategories = ["Rent", "EMI", "Insurance", "Loan Payments", "Other - Fixed"];
+    const discretionaryCategories = ["Dining Out", "Shopping", "Entertainment", "Subscriptions", "Travel", "Other - Discretionary"];
+    if (fixedCategories.includes(category)) return "Fixed";
+    if (discretionaryCategories.includes(category)) return "Discretionary";
+    return "Variable";
+  };
+
+  const messageFromPayload = (payload, fallbackMessage) =>
+    payload?.message || payload?.detail?.message || payload?.detail || fallbackMessage;
+
   async function fetchJson(endpoint) {
     try {
       const response = await fetch(endpoint, { credentials: "include" });
@@ -40,6 +103,116 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (error) {
       return { ok: false, status: 0, data: { message: "Network error", detail: String(error) } };
     }
+  }
+
+  function renderCategoryStability(rows) {
+    const tbody = document.getElementById("categoryStabilityList");
+    if (!tbody) return;
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; opacity:0.5;">No stability data yet. Add more expenses across multiple categories.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = rows.map((r) => {
+      const score = Number(r.stablity_score ?? r.stability_score ?? 0);
+      const rating = score >= 70
+        ? '<span style="color:#4ade80;">✅ Stable</span>'
+        : score >= 40
+          ? '<span style="color:#fbbf24;">⚠️ Moderate</span>'
+          : '<span style="color:#f87171;">❌ Unstable</span>';
+
+      return `<tr>
+        <td>${escapeHtml(r.month)}</td>
+        <td>${escapeHtml(r.category)}</td>
+        <td>₹${Number(r.mean_spend ?? 0).toLocaleString("en-IN")}</td>
+        <td>${score.toFixed(1)}</td>
+        <td>${rating}</td>
+      </tr>`;
+    }).join("");
+  }
+
+  function renderOverspending(rows) {
+    const tbody = document.getElementById("overspendingList");
+    if (!tbody) return;
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; opacity:0.5;">No data available.</td></tr>';
+      return;
+    }
+
+    const flagged = rows.filter((r) => r.is_overspending);
+    if (flagged.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#4ade80;">✅ No overspending detected across all categories.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = flagged.map((r) => {
+      const d = new Date(r.timestamp);
+      const date = Number.isNaN(d.getTime()) ? r.timestamp : d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      return `<tr>
+        <td>${escapeHtml(date)}</td>
+        <td>${escapeHtml(r.category)}</td>
+        <td style="font-weight:600;">₹${Number(r.amount).toLocaleString("en-IN")}</td>
+        <td><span style="color:#f87171; font-weight:600;">⚠️ Over Budget</span></td>
+      </tr>`;
+    }).join("");
+  }
+
+  function renderAnomalies(rows) {
+    const tbody = document.getElementById("anomalyList");
+    if (!tbody) return;
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; opacity:0.5;">No data available.</td></tr>';
+      return;
+    }
+
+    const flagged = rows.filter((r) => r.is_anomaly);
+    if (flagged.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#4ade80;">✅ No statistical anomalies detected.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = flagged.map((r) => {
+      const d = new Date(r.timestamp);
+      const date = Number.isNaN(d.getTime()) ? r.timestamp : d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      return `<tr>
+        <td>${escapeHtml(date)}</td>
+        <td>${escapeHtml(r.category)}</td>
+        <td style="font-weight:600;">₹${Number(r.amount).toLocaleString("en-IN")}</td>
+        <td><span style="color:#fb923c; font-weight:600;">🚨 Anomaly</span></td>
+      </tr>`;
+    }).join("");
+  }
+
+  function renderClusters(rows) {
+    const tbody = document.getElementById("clusterList");
+    if (!tbody) return;
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; opacity:0.5;">No cluster data yet. Add more expenses to enable clustering.</td></tr>';
+      return;
+    }
+
+    const colorMap = {
+      low: { color: "#4ade80", label: "🟢 Low" },
+      medium: { color: "#fbbf24", label: "🟡 Medium" },
+      high: { color: "#f87171", label: "🔴 High" }
+    };
+
+    tbody.innerHTML = rows.map((r) => {
+      const d = new Date(r.timestamp);
+      const date = Number.isNaN(d.getTime()) ? r.timestamp : d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+      const cluster = String(r.cluster_label || "unknown").toLowerCase();
+      const c = colorMap[cluster] || { color: "#a1a1aa", label: cluster };
+      return `<tr>
+        <td>${escapeHtml(date)}</td>
+        <td>${escapeHtml(r.category)}</td>
+        <td>₹${Number(r.amount).toLocaleString("en-IN")}</td>
+        <td><span style="color:${c.color}; font-weight:600;">${c.label}</span></td>
+      </tr>`;
+    }).join("");
   }
 
   function renderAIInsights(cards) {
@@ -97,22 +270,62 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const fallbackMessage =
-      habitResponse.data?.message ||
-      habitResponse.data?.detail?.message ||
-      habitResponse.data?.detail ||
-      "Habit engine unavailable right now.";
-
+    const fallbackMessage = messageFromPayload(habitResponse.data, "Habit engine unavailable right now.");
     habitText.innerHTML = `<p class="expense-insight-empty">${escapeHtml(fallbackMessage)}</p>`;
   }
 
-  // --- 1. MODAL LOGIC (Using .active class — matches goal modal) ---
-  if (openBtn) openBtn.onclick = () => modal.classList.add("active");
-  if (closeBtn) closeBtn.onclick = () => modal.classList.remove("active");
-  const overlay = document.getElementById("modalOverlay");
-  if (overlay) overlay.onclick = () => modal.classList.remove("active");
+  function clearDynamicCategories() {
+    if (!categoryInput) return;
+    const dynamicOptions = categoryInput.querySelectorAll("option[data-dynamic='true']");
+    dynamicOptions.forEach((option) => option.remove());
+  }
 
-  // --- 2. FETCH FROM DATABASE ---
+  function ensureCategoryOption(category) {
+    if (!categoryInput || !category) return;
+    const existing = Array.from(categoryInput.options).some((option) => option.value === category);
+    if (existing) return;
+
+    const option = document.createElement("option");
+    option.value = category;
+    option.textContent = category;
+    option.setAttribute("data-dynamic", "true");
+    categoryInput.appendChild(option);
+  }
+
+  function setFormMode(isEdit) {
+    if (modalTitle) modalTitle.textContent = isEdit ? "Edit Transaction" : "Add Transaction";
+    if (saveExpenseBtn) saveExpenseBtn.textContent = isEdit ? "Update Transaction" : "Save Transaction";
+  }
+
+  function closeModalAndReset() {
+    editingExpenseId = null;
+    setFormMode(false);
+    clearDynamicCategories();
+    if (form) form.reset();
+    if (modal) modal.classList.remove("active");
+  }
+
+  function openAddModal() {
+    editingExpenseId = null;
+    setFormMode(false);
+    clearDynamicCategories();
+    if (form) form.reset();
+    if (modal) modal.classList.add("active");
+  }
+
+  function openEditModal(expense) {
+    if (!expense) return;
+    editingExpenseId = expense.id;
+    setFormMode(true);
+    ensureCategoryOption(expense.category);
+
+    if (amountInput) amountInput.value = Number(expense.amount || 0);
+    if (categoryInput) categoryInput.value = expense.category || "";
+    if (dateInput) dateInput.value = toInputDate(expense.date);
+    if (noteInput) noteInput.value = expense.note || "";
+    if (modal) modal.classList.add("active");
+  }
+
   async function fetchExpenses() {
     try {
       const res = await fetch("/api/expenses", { credentials: "include" });
@@ -120,93 +333,164 @@ document.addEventListener("DOMContentLoaded", () => {
         if (res.status === 401) window.location.href = "SignIn.html";
         return;
       }
-      expenses = await res.json();
-      renderExpenses();
 
-      // TRIGGER AI ANALYSIS REFRESH
+      const rows = await res.json();
+      const today = todayDateOnly();
+      expenses = (Array.isArray(rows) ? rows : []).filter((expense) => {
+        const parsedDate = parseDateOnly(expense.date);
+        return parsedDate && parsedDate.getTime() <= today.getTime();
+      });
+
+      renderExpenses();
       updateAIInsights();
     } catch (err) {
       console.error("Error fetching expenses:", err);
     }
   }
 
-  // --- 3. RENDER LOGIC ---
   function renderExpenses() {
     if (!list) return;
     list.innerHTML = "";
+
     let total = 0;
     let fixed = 0;
     let discretionary = 0;
 
-    expenses.forEach(e => {
-      const amount = parseFloat(e.amount);
-      total += amount;
+    if (!expenses.length) {
+      list.innerHTML = '<tr class="empty-row"><td colspan="6">No expenses yet. Add one to get started.</td></tr>';
+    }
 
-      // Logic for Stability Model features (Fixed vs Discretionary)
-      if (e.nature === "Fixed") fixed += amount;
-      if (e.nature === "Discretionary" || e.nature === "Variable") discretionary += amount;
+    expenses.forEach((expense) => {
+      const amount = parseFloat(expense.amount);
+      const safeAmount = Number.isFinite(amount) ? amount : 0;
+      total += safeAmount;
 
-      const dateObj = new Date(e.date);
-      const formattedDate = dateObj.toLocaleDateString('en-IN', {
-        day: '2-digit', month: 'short', year: 'numeric'
-      });
+      if (expense.nature === "Fixed") fixed += safeAmount;
+      if (expense.nature === "Discretionary" || expense.nature === "Variable") discretionary += safeAmount;
+
+      const parsedDate = parseDateOnly(expense.date);
+      const formattedDate = parsedDate
+        ? parsedDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+        : "-";
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td>${formattedDate}</td>
-        <td><span class="badge" style="background: rgba(99, 102, 241, 0.2); color: var(--color-primary-light); padding: 4px 8px; border-radius: 4px;">${e.category}</span></td>
-        <td><span style="font-size: 0.8rem; opacity: 0.7;">${e.nature}</span></td>
-        <td style="font-weight: 600;">₹${amount.toLocaleString('en-IN')}</td>
-        <td style="color: var(--text-muted); font-size: 0.9rem;">${e.note || ''}</td>
+        <td>${escapeHtml(formattedDate)}</td>
+        <td><span class="badge" style="background: rgba(99, 102, 241, 0.2); color: var(--color-primary-light); padding: 4px 8px; border-radius: 4px;">${escapeHtml(expense.category || "Miscellaneous")}</span></td>
+        <td><span style="font-size: 0.8rem; opacity: 0.7;">${escapeHtml(expense.nature || "Variable")}</span></td>
+        <td style="font-weight: 600;">₹${safeAmount.toLocaleString("en-IN")}</td>
+        <td style="color: var(--text-muted); font-size: 0.9rem;">${escapeHtml(expense.note || "")}</td>
+        <td class="expense-actions-cell">
+          <button type="button" class="expense-action-btn expense-action-edit" data-action="edit" data-id="${expense.id}">Edit</button>
+          <button type="button" class="expense-action-btn expense-action-delete" data-action="delete" data-id="${expense.id}">Delete</button>
+        </td>
       `;
       list.appendChild(tr);
     });
 
-    // Update KPI Cards on the Expense Page
     const totalEl = document.getElementById("totalAmount");
     const fixedEl = document.getElementById("fixedStat");
     const discEl = document.getElementById("discretionaryStat");
 
-    if (totalEl) totalEl.innerText = `₹${total.toLocaleString('en-IN')}`;
-    if (fixedEl) fixedEl.innerText = total ? Math.round((fixed / total) * 100) + "%" : "0%";
-    if (discEl) discEl.innerText = total ? Math.round((discretionary / total) * 100) + "%" : "0%";
+    if (totalEl) totalEl.innerText = `₹${total.toLocaleString("en-IN")}`;
+    if (fixedEl) fixedEl.innerText = total ? `${Math.round((fixed / total) * 100)}%` : "0%";
+    if (discEl) discEl.innerText = total ? `${Math.round((discretionary / total) * 100)}%` : "0%";
   }
 
-  // --- 4. MANUAL ADD EXPENSE ---
-  if (form) {
-    form.onsubmit = async (e) => {
-      e.preventDefault();
+  async function deleteExpense(expenseId) {
+    if (!Number.isInteger(expenseId) || expenseId <= 0) return;
+    if (!window.confirm("Delete this expense entry?")) return;
 
-      const amount = Number(document.getElementById("amount").value);
-      const category = document.getElementById("category").value;
-      const date = document.getElementById("date").value;
-      const note = document.getElementById("note").value;
+    try {
+      const response = await fetch(`/api/expenses/${expenseId}`, {
+        method: "DELETE",
+        credentials: "include"
+      });
 
-      // AUTO-ASSIGN NATURE for ML Features
-      let nature = "Variable";
-      if (["Rent", "Utilities", "EMI", "Insurance", "Bills"].includes(category)) nature = "Fixed";
-      else if (["Entertainment", "Shopping", "Dining Out"].includes(category)) nature = "Discretionary";
-
+      let payload = {};
       try {
-        const res = await fetch("/api/expenses", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ amount, category, date, note, nature })
-        });
-
-        if (res.ok) {
-          modal.classList.remove("active");
-          form.reset();
-          fetchExpenses(); // Refresh table from PostgreSQL
-        }
-      } catch (err) {
-        console.error("Error adding expense:", err);
+        payload = await response.json();
+      } catch {
+        payload = {};
       }
-    };
+
+      if (!response.ok) {
+        alert(messageFromPayload(payload, "Failed to delete expense"));
+        return;
+      }
+
+      await fetchExpenses();
+    } catch (error) {
+      alert("Network error while deleting expense.");
+    }
   }
 
-  // --- 5. SYNC GMAIL & PDF UPLOAD ---
+  async function handleExpenseSubmit(event) {
+    event.preventDefault();
+
+    const amount = Number(amountInput?.value);
+    const category = String(categoryInput?.value || "").trim();
+    const date = String(dateInput?.value || "").trim();
+    const note = String(noteInput?.value || "").trim();
+
+    const parsedDate = parseDateOnly(date);
+    if (!parsedDate) {
+      alert("Please select a valid expense date.");
+      return;
+    }
+    if (parsedDate.getTime() > todayDateOnly().getTime()) {
+      alert("Future-dated expenses are not allowed.");
+      return;
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      alert("Amount must be a positive number.");
+      return;
+    }
+    if (!category) {
+      alert("Please select a category.");
+      return;
+    }
+
+    let nature = inferNature(category);
+    if (editingExpenseId !== null) {
+      const existing = expenses.find((item) => Number(item.id) === editingExpenseId);
+      if (existing && existing.category === category && existing.nature) {
+        nature = existing.nature;
+      }
+    }
+
+    const endpoint = editingExpenseId === null
+      ? "/api/expenses"
+      : `/api/expenses/${editingExpenseId}`;
+    const method = editingExpenseId === null ? "POST" : "PUT";
+
+    try {
+      const response = await fetch(endpoint, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ amount, category, date, note, nature })
+      });
+
+      let payload = {};
+      try {
+        payload = await response.json();
+      } catch {
+        payload = {};
+      }
+
+      if (!response.ok) {
+        alert(messageFromPayload(payload, "Failed to save expense"));
+        return;
+      }
+
+      closeModalAndReset();
+      await fetchExpenses();
+    } catch (error) {
+      alert("Network error while saving expense.");
+    }
+  }
+
   const handleAction = async (btn, apiEndpoint, method = "GET", body = null) => {
     const originalText = btn.innerHTML;
     btn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Processing...';
@@ -218,16 +502,28 @@ document.addEventListener("DOMContentLoaded", () => {
       if (body) options.body = body;
 
       const response = await fetch(apiEndpoint, options);
-      const data = await response.json();
-
-      if (response.ok) {
-        alert(`Success! Found ${data.found_transactions} transactions.`);
-        fetchExpenses();
-      } else {
-        alert("Error: " + data.message);
+      let data = {};
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
       }
+
+      if (!response.ok) {
+        alert(`Error: ${messageFromPayload(data, "Request failed")}`);
+        return;
+      }
+
+      const added = Number(data.found_transactions ?? 0);
+      const duplicates = Number(data.duplicates_skipped ?? 0);
+      if (Number.isFinite(added) || Number.isFinite(duplicates)) {
+        alert(`${data.message || "Completed"} Added ${Math.max(0, added)} transaction(s), skipped ${Math.max(0, duplicates)} duplicate(s).`);
+      } else {
+        alert(data.message || "Action completed successfully.");
+      }
+      await fetchExpenses();
     } catch (err) {
-      alert("Network error. Please check if Python APIs are running.");
+      alert("Network error. Please check if backend services are running.");
     } finally {
       btn.innerHTML = originalText;
       btn.disabled = false;
@@ -235,24 +531,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  if (syncBtn) syncBtn.onclick = () => handleAction(syncBtn, "/api/sync-emails");
-
-  const uploadPdfBtn = document.getElementById("uploadPdfBtn");
-  const pdfInput = document.getElementById("pdfUploadInput");
-
-  if (uploadPdfBtn && pdfInput) {
-    uploadPdfBtn.onclick = () => pdfInput.click();
-    pdfInput.onchange = (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const formData = new FormData();
-      formData.append("statement", file);
-      handleAction(uploadPdfBtn, "/api/upload-statement", "POST", formData);
-      pdfInput.value = "";
-    };
-  }
-
-  // --- 6. SYNC WITH PYTHON ML MODELS ---
   async function updateAIInsights() {
     renderAIInsights([{ title: "Loading AI insights...", text: "Analyzing your recent expenses." }]);
     if (habitText) {
@@ -284,6 +562,16 @@ document.addEventListener("DOMContentLoaded", () => {
         title: `Financial Profile: ${fp.profile_label || "Unknown"}`,
         text: `Spending stability ${Number(fp.stability_score || 0).toFixed(1)}% with confidence ${confidencePct}.`
       });
+
+      renderCategoryStability(financialProfileRes.data.category_stability);
+      renderOverspending(financialProfileRes.data.overspending);
+      renderAnomalies(financialProfileRes.data.anomaly);
+      renderClusters(financialProfileRes.data.expense_clusters);
+    } else {
+      renderCategoryStability([]);
+      renderOverspending([]);
+      renderAnomalies([]);
+      renderClusters([]);
     }
 
     if (aiAnalysisRes.ok && Array.isArray(aiAnalysisRes.data?.suggestions)) {
@@ -334,6 +622,62 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Initial Load
+  if (dateInput) {
+    dateInput.max = toInputDate(todayDateOnly());
+  }
+
+  if (openBtn) openBtn.onclick = openAddModal;
+  if (closeBtn) closeBtn.onclick = closeModalAndReset;
+  if (overlay) overlay.onclick = closeModalAndReset;
+  if (cancelBtn) cancelBtn.onclick = closeModalAndReset;
+  if (form) form.onsubmit = handleExpenseSubmit;
+
+  if (list) {
+    list.addEventListener("click", async (event) => {
+      const button = event.target.closest("button[data-action]");
+      if (!button) return;
+
+      const expenseId = Number.parseInt(button.dataset.id, 10);
+      if (!Number.isInteger(expenseId)) return;
+
+      const action = button.dataset.action;
+      if (action === "edit") {
+        const expense = expenses.find((item) => Number(item.id) === expenseId);
+        openEditModal(expense);
+      } else if (action === "delete") {
+        await deleteExpense(expenseId);
+      }
+    });
+  }
+
+  if (syncBtn) syncBtn.onclick = () => handleAction(syncBtn, "/api/sync-emails");
+
+  if (uploadPdfBtn && pdfInput) {
+    uploadPdfBtn.onclick = () => pdfInput.click();
+    pdfInput.onchange = () => {
+      const file = pdfInput.files && pdfInput.files[0];
+      if (!file) return;
+
+      const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+      if (!isPdf) {
+        alert("Please upload a PDF statement.");
+        pdfInput.value = "";
+        return;
+      }
+
+      const maxBytes = 8 * 1024 * 1024;
+      if (file.size > maxBytes) {
+        alert("Statement file is too large. Max size is 8MB.");
+        pdfInput.value = "";
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("statement", file);
+      handleAction(uploadPdfBtn, "/api/upload-statement", "POST", formData);
+      pdfInput.value = "";
+    };
+  }
+
   fetchExpenses();
 });

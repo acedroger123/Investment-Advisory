@@ -3,20 +3,14 @@ Database connection and session management.
 """
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy.pool import StaticPool
-import os
+from config import settings
 
-# Create data directory if it doesn't exist
-os.makedirs("data", exist_ok=True)
+# PostgreSQL database URL (override via .env if needed)
+DATABASE_URL = settings.DATABASE_URL
 
-# SQLite database URL
-DATABASE_URL = "sqlite:///./data/stocks.db"
-
-# Create engine with SQLite-specific settings
+# Create engine with PostgreSQL settings
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
     echo=False  # Set to True for SQL debugging
 )
 

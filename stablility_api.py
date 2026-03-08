@@ -1,12 +1,10 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 import pandas as pd
 from Expense_Behavior_Analysis import Expensebehavoiur
 
 app = FastAPI(title="Financial & Expense Analysis API")
-
-analyser = Expensebehavoiur()
 
 class Expense(BaseModel):
     timestamp: str
@@ -16,6 +14,7 @@ class Expense(BaseModel):
 class ExpenseRequest(BaseModel):
     user_id: str
     expenses: List[Expense]
+    monthly_income: Optional[float] = 0.0
 
 def map_financial_profile(summary: dict) -> dict:
     stability = summary['stablity_score']
@@ -44,6 +43,7 @@ def analyze_financial_profile(request: ExpenseRequest):
     try:
         df = pd.DataFrame([e.dict() for e in request.expenses])
 
+        analyser = Expensebehavoiur(monthly_income=request.monthly_income or 0.0)
         result = analyser.analyse(df)
         expense_summary = result["behvour summary"]
 
