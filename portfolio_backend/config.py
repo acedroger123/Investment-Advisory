@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     PRICE_UPDATE_INTERVAL_MINUTES: int = 15
     
     # Monte Carlo Settings
-    MC_SIMULATIONS: int = 1000
+    MC_SIMULATIONS: int = 500  # Reduced from 1000 for faster load times
     MC_TRADING_DAYS_PER_YEAR: int = 252
     
     # Rebalancing Thresholds

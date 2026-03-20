@@ -111,7 +111,7 @@ async function loadTransactions() {
                 <td>${formatCurrency(txn.total_value)}</td>
                 <td>
                     ${txn.validated
-                ? '<span class="text-success">✓ Valid</span>'
+                ? '<span class="text-success">Valid</span>'
                 : '<span class="text-warning">⚠ Unverified</span>'}
                 </td>
                 <td>
@@ -194,14 +194,14 @@ async function validatePrice() {
         const result = await API.Stocks.validatePrice(symbol, date, price);
 
         resultDiv.innerHTML = `
-            <span class="validation-icon">${result.is_valid ? '✅' : '⚠️'}</span>
+            <span class="validation-icon">${result.is_valid ? 'Valid' : 'Warning'}</span>
             <span class="validation-message">${result.message}</span>
         `;
         resultDiv.className = `validation-result ${result.is_valid ? 'valid' : 'invalid'}`;
 
     } catch (error) {
         resultDiv.innerHTML = `
-            <span class="validation-icon">❌</span>
+            <span class="validation-icon">Error</span>
             <span class="validation-message">Could not validate: ${error.message}</span>
         `;
         resultDiv.className = 'validation-result invalid';
@@ -239,7 +239,7 @@ async function submitTransaction(event) {
             showToast(`Price validation failed: ${validation.message}. Please enter the correct price.`, 'error');
             resultDiv.style.display = 'flex';
             resultDiv.innerHTML = `
-                <span class="validation-icon">❌</span>
+                <span class="validation-icon">Error</span>
                 <span class="validation-message">${validation.message}. Please correct the price.</span>
             `;
             resultDiv.className = 'validation-result invalid';

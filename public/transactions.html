@@ -13,7 +13,7 @@
     <nav class="navbar">
         <div class="sidebar-header">
             <div class="nav-brand">
-                <span class="brand-icon">📈</span>
+                <span class="brand-icon"><i data-lucide="trending-up" size="20"></i></span>
                 <span class="brand-text">AI Wealth</span>
             </div>
             <button class="sidebar-toggle" type="button" data-sidebar-toggle aria-label="Collapse sidebar" aria-expanded="true">
@@ -151,12 +151,14 @@
     </main>
 
     <footer class="footer">
-        <p>⚠️ <strong>Disclaimer:</strong> This is an educational system. It does not provide financial advice.</p>
+        <p><strong>Disclaimer:</strong> This is an educational system. It does not provide financial advice.</p>
     </footer>
 
+    <script src="https://unpkg.com/lucide@latest"></script>
     <script src="js/layout.js"></script>
     <script src="js/api.js"></script>
     <script src="js/transactions.js"></script>
+    <script>if (window.lucide) lucide.createIcons();</script>
 </body>
 
 </html>

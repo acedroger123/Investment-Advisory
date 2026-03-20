@@ -14,4 +14,4 @@ model.fit(X, y)
 os.makedirs("model", exist_ok=True)
 joblib.dump(model, "strategy_ranker.pkl")
 
-print("✅ Strategy ranking model trained")
+print("Strategy ranking model trained")

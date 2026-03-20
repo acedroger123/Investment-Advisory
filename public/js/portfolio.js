@@ -449,7 +449,7 @@ function ensureSmartBuySection() {
         <div class="data-card">
             <div class="card-header">
                 <div class="smart-buy-header-title">
-                    <span class="smart-buy-icon">🎯</span>
+                    <span class="smart-buy-icon"></span>
                     <h3>Smart Buy Recommendations</h3>
                     <span class="badge badge-info smart-buy-ai-badge">AI Powered</span>
                 </div>
@@ -458,9 +458,12 @@ function ensureSmartBuySection() {
             <p class="smart-buy-subtitle">
                 Stocks with meaningful short-term dips that still fit your goal, risk profile, and growth requirement.
             </p>
-            <div id="smartBuyLoading" class="portfolio-loading" style="display:none;min-height:120px;">
+            <div id="smartBuyLoading" class="portfolio-loading smart-buy-loading" style="display:none;min-height:180px;">
                 <div class="loading-spinner"></div>
-                <span>Analyzing market dips and goal fit...</span>
+                <div class="loading-text">
+                    <span class="loading-title">Scanning Market Opportunities</span>
+                    <span class="loading-subtitle">Analyzing 60+ stocks for price dips and goal alignment...</span>
+                </div>
             </div>
             <div id="smartBuyList" class="smart-buy-grid"></div>
         </div>
@@ -533,7 +536,7 @@ function renderSmartBuyRecommendations(recs) {
     if (filteredRecs.length === 0) {
         listEl.innerHTML = `
             <div class="smart-buy-empty">
-                <span class="smart-buy-empty-icon">✅</span>
+                <span class="smart-buy-empty-icon"></span>
                 <p>No new Smart Buy opportunities right now. Existing picks are already in your portfolio or market dips are limited.</p>
             </div>`;
         return;

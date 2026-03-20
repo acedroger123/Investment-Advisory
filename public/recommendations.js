@@ -16,6 +16,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const habitSummaryEl = document.getElementById("habitConflictSummary");
   const habitMetaEl = document.getElementById("habitConflictMeta");
   const habitRoadmapEl = document.getElementById("habitRoadmap");
+  const goalFilterSelect = document.getElementById("goalFilterSelect");
+  const goalChips = document.getElementById("goalChips");
+  const selectedGoalsInfo = document.getElementById("selectedGoalsInfo");
+
+  // Store all goals and current filter state
+  let allGoals = [];
+  let selectedGoalFilter = "top3"; // "top3", "all", or a specific goal ID
+  let latestHabitData = null;
 
   const DEFAULT_QUICK_WINS = [
     { text: "Cancel unused subscriptions", save: "₹600/mo" },
@@ -61,7 +69,7 @@ document.addEventListener("DOMContentLoaded", () => {
       score: 0.87,
       score_tier: "Critical",
       why_ranked: "High discretionary volatility is delaying core goals.",
-      impacts_goal: "Emergency Buffer",
+      impacts_goal: "Primary Goal",
       feasibility_impact_pct: -12.0,
       goal_success_probability_before: 64.0,
       goal_success_probability_after: 79.0,
@@ -75,7 +83,7 @@ document.addEventListener("DOMContentLoaded", () => {
       score: 0.74,
       score_tier: "High",
       why_ranked: "Purchase frequency clustering is increasing monthly leakage.",
-      impacts_goal: "Emergency Buffer",
+      impacts_goal: "Secondary Goal",
       feasibility_impact_pct: -9.0,
       goal_success_probability_before: 64.0,
       goal_success_probability_after: 75.0,
@@ -89,13 +97,41 @@ document.addEventListener("DOMContentLoaded", () => {
       score: 0.61,
       score_tier: "Moderate",
       why_ranked: "Night spend spikes are reducing consistency.",
-      impacts_goal: "Emergency Buffer",
+      impacts_goal: "Primary Goal",
       feasibility_impact_pct: -7.0,
       goal_success_probability_before: 64.0,
       goal_success_probability_after: 72.0,
       goal_timeline_reduction_months: 1.5,
       difficulty_level: "Behavioral Shift Required",
       technical_why: "Dominant factor: night ratio and impulse exposure."
+    },
+    {
+      rank: 4,
+      recommendation: "Automate savings transfers on salary credit day.",
+      score: 0.58,
+      score_tier: "Moderate",
+      why_ranked: "Consistent automated transfers reduce goal timeline variance.",
+      impacts_goal: "Secondary Goal",
+      feasibility_impact_pct: -8.0,
+      goal_success_probability_before: 64.0,
+      goal_success_probability_after: 70.0,
+      goal_timeline_reduction_months: 1.3,
+      difficulty_level: "Easy",
+      technical_why: "Dominant factor: savings automation reduces friction."
+    },
+    {
+      rank: 5,
+      recommendation: "Review and cancel underutilized subscriptions.",
+      score: 0.52,
+      score_tier: "Moderate",
+      why_ranked: "Recurring subscription leakage affects multiple goal timelines.",
+      impacts_goal: "All Goals",
+      feasibility_impact_pct: -5.0,
+      goal_success_probability_before: 64.0,
+      goal_success_probability_after: 68.0,
+      goal_timeline_reduction_months: 0.9,
+      difficulty_level: "Easy",
+      technical_why: "Dominant factor: recurring cost optimization."
     }
   ];
 
@@ -123,6 +159,204 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   let latestGoal = null;
+
+  /**
+   * Load all goals from FastAPI and populate the filter dropdown
+   */
+  async function loadAllGoals() {
+    try {
+      const response = await fetch("/pa-api/goals", { credentials: "include" });
+      if (!response.ok) throw new Error("Failed to load goals");
+      const goals = await response.json();
+      
+      if (Array.isArray(goals) && goals.length > 0) {
+        // Sort by ID ascending (oldest first)
+        allGoals = goals.sort((a, b) => a.id - b.id);
+        populateGoalFilter();
+        renderGoalChips();
+      }
+    } catch (error) {
+      console.warn("Could not load goals:", error.message);
+      allGoals = [];
+    }
+  }
+
+  /**
+   * Populate the goal filter dropdown with individual goals
+   */
+  function populateGoalFilter() {
+    if (!goalFilterSelect) return;
+    
+    // Keep the default options, add individual goals
+    const existingOptions = goalFilterSelect.querySelectorAll("option");
+    // Remove any previously added goal options (after the disabled separator)
+    let foundSeparator = false;
+    existingOptions.forEach(opt => {
+      if (opt.disabled && opt.textContent.includes("Select Individual")) {
+        foundSeparator = true;
+      } else if (foundSeparator && !opt.disabled) {
+        opt.remove();
+      }
+    });
+    
+    // Add individual goal options
+    allGoals.forEach(goal => {
+      const option = document.createElement("option");
+      option.value = `goal_${goal.id}`;
+      option.textContent = `${goal.name} (₹${Number(goal.target_amount || goal.target_value || 0).toLocaleString("en-IN")})`;
+      goalFilterSelect.appendChild(option);
+    });
+  }
+
+  /**
+   * Render goal chips showing which goals are currently selected
+   */
+  function renderGoalChips() {
+    if (!goalChips) return;
+    goalChips.innerHTML = "";
+    
+    let goalsToShow = [];
+    if (selectedGoalFilter === "top3") {
+      goalsToShow = allGoals.slice(0, 3);
+    } else if (selectedGoalFilter === "all") {
+      goalsToShow = allGoals;
+    } else if (selectedGoalFilter.startsWith("goal_")) {
+      const goalId = parseInt(selectedGoalFilter.replace("goal_", ""), 10);
+      const goal = allGoals.find(g => g.id === goalId);
+      if (goal) goalsToShow = [goal];
+    }
+    
+    if (goalsToShow.length === 0) {
+      goalChips.innerHTML = '<span style="color: var(--text-muted); font-size: 0.85rem;">No goals selected</span>';
+      if (selectedGoalsInfo) selectedGoalsInfo.textContent = "Showing: 0 goals";
+      return;
+    }
+    
+    goalsToShow.forEach(goal => {
+      const chip = document.createElement("span");
+      chip.className = "goal-chip";
+      chip.innerHTML = `<i data-lucide="target" style="width: 14px; height: 14px;"></i> ${goal.name}`;
+      goalChips.appendChild(chip);
+    });
+    
+    if (selectedGoalsInfo) {
+      selectedGoalsInfo.textContent = `Showing: ${goalsToShow.length} goal${goalsToShow.length !== 1 ? "s" : ""}`;
+    }
+    
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  /**
+   * Get goal names based on current filter
+   */
+  function getSelectedGoalNames() {
+    if (selectedGoalFilter === "top3") {
+      return allGoals.slice(0, 3).map(g => g.name.toLowerCase());
+    } else if (selectedGoalFilter === "all") {
+      return allGoals.map(g => g.name.toLowerCase());
+    } else if (selectedGoalFilter.startsWith("goal_")) {
+      const goalId = parseInt(selectedGoalFilter.replace("goal_", ""), 10);
+      const goal = allGoals.find(g => g.id === goalId);
+      return goal ? [goal.name.toLowerCase()] : [];
+    }
+    return [];
+  }
+
+  /**
+   * Filter recommendations based on selected goals
+   */
+  function filterRecommendationsByGoals(recommendations) {
+    if (!recommendations || recommendations.length === 0) return recommendations;
+    
+    const selectedNames = getSelectedGoalNames();
+    if (selectedNames.length === 0) return recommendations;
+    
+    // Filter recommendations that impact the selected goals
+    const filtered = recommendations.filter(rec => {
+      const impactsGoal = (rec.impacts_goal || "").toLowerCase();
+      // Include if it matches any selected goal or is a generic impact
+      const genericImpacts = ["savings discipline", "cash flow stability", "budget efficiency", "financial health", "spending control", "overall savings", "financial discipline", "budget control"];
+      return selectedNames.some(name => impactsGoal.includes(name)) || 
+             genericImpacts.some(gi => impactsGoal.includes(gi));
+    });
+    
+    // If filtering results in too few, return all but re-label them
+    if (filtered.length < 3) {
+      return recommendations.slice(0, 5).map((rec, idx) => {
+        const goalNames = allGoals.slice(0, 3).map(g => g.name);
+        if (selectedGoalFilter.startsWith("goal_")) {
+          const goalId = parseInt(selectedGoalFilter.replace("goal_", ""), 10);
+          const goal = allGoals.find(g => g.id === goalId);
+          if (goal) {
+            return { ...rec, impacts_goal: goal.name };
+          }
+        }
+        // Distribute across selected goals
+        const targetGoal = goalNames[idx % goalNames.length] || rec.impacts_goal;
+        return { ...rec, impacts_goal: targetGoal };
+      });
+    }
+    
+    return filtered;
+  }
+
+  /**
+   * Assign user's actual goal names to recommendations based on filter selection
+   */
+  function assignGoalsToRecommendations(recommendations) {
+    if (!recommendations || recommendations.length === 0) return recommendations;
+    
+    let targetGoals = [];
+    
+    if (selectedGoalFilter === "top3") {
+      targetGoals = allGoals.slice(0, 3);
+    } else if (selectedGoalFilter === "all") {
+      targetGoals = allGoals;
+    } else if (selectedGoalFilter.startsWith("goal_")) {
+      const goalId = parseInt(selectedGoalFilter.replace("goal_", ""), 10);
+      const goal = allGoals.find(g => g.id === goalId);
+      if (goal) targetGoals = [goal];
+    }
+    
+    if (targetGoals.length === 0) {
+      targetGoals = [{ name: "Primary Goal" }];
+    }
+    
+    // Assign goals in round-robin fashion
+    return recommendations.map((rec, idx) => {
+      const targetGoal = targetGoals[idx % targetGoals.length];
+      return {
+        ...rec,
+        impacts_goal: targetGoal.name,
+        rank: idx + 1
+      };
+    });
+  }
+
+  /**
+   * Re-render recommendations with current filter (no new API call)
+   */
+  function refilterRecommendations() {
+    if (!latestHabitData) {
+      statusText("Run analysis first to see recommendations.");
+      return;
+    }
+    
+    const ranked = Array.isArray(latestHabitData?.ranked_recommendations)
+      ? latestHabitData.ranked_recommendations
+      : [];
+    
+    if (ranked.length > 0) {
+      const rankedMinimum = ensureMinimumRankedRecommendations(ranked, 5);
+      const filteredRanked = filterRecommendationsByGoals(rankedMinimum);
+      const finalRanked = assignGoalsToRecommendations(filteredRanked);
+      
+      renderRankedRecommendations(finalRanked);
+      renderQuickWinsFromRanked(finalRanked, latestHabitData?.ai_guidance?.impact_summary, latestHabitData?.quick_wins);
+      renderGuidance(latestHabitData?.ai_guidance, finalRanked);
+      statusText("Recommendations filtered by selected goals.");
+    }
+  }
 
   function formatINR(value, maxFractionDigits = 0) {
     const num = Number(value || 0);
@@ -300,32 +534,65 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  function renderQuickWinsFromRanked(recommendations, impactSummary) {
+  function renderQuickWinsFromRanked(recommendations, impactSummary, quickWinsData = null) {
     if (!winList) return;
     winList.innerHTML = "";
 
-    const ranked = Array.isArray(recommendations) && recommendations.length > 0
-      ? recommendations.slice(0, 3)
-      : FALLBACK_RANKED_RECOMMENDATIONS.slice(0, 3);
     const summary = impactSummary || FALLBACK_GUIDANCE.impact_summary;
 
-    ranked.forEach((rec) => {
-      const monthly = Math.max(1200, Math.round(Number(rec.score || 0.5) * 8500));
-      const gapCoverage = Math.max(6, Math.round(Number(rec.goal_timeline_reduction_months || 1.2) * 8));
+    // Prefer actual quick_wins data from API (based on real expenses)
+    if (quickWinsData && Array.isArray(quickWinsData) && quickWinsData.length > 0) {
+      quickWinsData.slice(0, 5).forEach((qw) => {
+        const div = document.createElement("div");
+        div.className = "win-item";
+        div.innerHTML = `
+          <span style="color: var(--text-primary);">${qw.goal_name}: ${qw.difficulty}</span>
+          <span class="win-save">₹${Number(qw.monthly_savings).toLocaleString("en-IN")}/mo</span>
+        `;
+        winList.appendChild(div);
 
-      const div = document.createElement("div");
-      div.className = "win-item";
-      div.innerHTML = `
-        <span style="color: var(--text-primary);">${rec.impacts_goal || "Goal"}: ${rec.difficulty_level || "Moderate"}</span>
-        <span class="win-save">₹${monthly.toLocaleString("en-IN")}/mo</span>
-      `;
-      winList.appendChild(div);
+        const detail = document.createElement("div");
+        detail.style.cssText = "font-size:0.78rem; color: var(--text-muted); margin:-4px 0 8px 6px;";
+        detail.textContent = `${Number(qw.gap_coverage_pct).toFixed(0)}% gap coverage potential`;
+        winList.appendChild(detail);
+      });
+    } else {
+      // Fallback to recommendations-based calculation if no quick_wins data
+      const ranked = Array.isArray(recommendations) && recommendations.length > 0
+        ? recommendations.slice(0, 3)
+        : FALLBACK_RANKED_RECOMMENDATIONS.slice(0, 3);
 
-      const detail = document.createElement("div");
-      detail.style.cssText = "font-size:0.78rem; color: var(--text-muted); margin:-4px 0 8px 6px;";
-      detail.textContent = `${gapCoverage}% gap coverage potential`;
-      winList.appendChild(detail);
-    });
+      // Use actual goal names from the filter
+      let goalNames = [];
+      if (selectedGoalFilter === "top3") {
+        goalNames = allGoals.slice(0, 3).map(g => g.name);
+      } else if (selectedGoalFilter === "all") {
+        goalNames = allGoals.map(g => g.name);
+      } else if (selectedGoalFilter.startsWith("goal_")) {
+        const goalId = parseInt(selectedGoalFilter.replace("goal_", ""), 10);
+        const goal = allGoals.find(g => g.id === goalId);
+        if (goal) goalNames = [goal.name];
+      }
+
+      ranked.forEach((rec, idx) => {
+        const monthly = Math.max(1200, Math.round(Number(rec.score || 0.5) * 8500));
+        const gapCoverage = Math.max(6, Math.round(Number(rec.goal_timeline_reduction_months || 1.2) * 8));
+        const goalName = goalNames[idx % Math.max(1, goalNames.length)] || rec.impacts_goal || "Goal";
+
+        const div = document.createElement("div");
+        div.className = "win-item";
+        div.innerHTML = `
+          <span style="color: var(--text-primary);">${goalName}: ${rec.difficulty_level || "Moderate"}</span>
+          <span class="win-save">₹${monthly.toLocaleString("en-IN")}/mo</span>
+        `;
+        winList.appendChild(div);
+
+        const detail = document.createElement("div");
+        detail.style.cssText = "font-size:0.78rem; color: var(--text-muted); margin:-4px 0 8px 6px;";
+        detail.textContent = `${gapCoverage}% gap coverage potential`;
+        winList.appendChild(detail);
+      });
+    }
 
     if (potentialSavings) {
       potentialSavings.textContent = `${formatINR(summary.potential_savings_monthly || 0)}/month`;
@@ -338,7 +605,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function ensureMinimumRankedRecommendations(recommendations, minCount = 3) {
+  function ensureMinimumRankedRecommendations(recommendations, minCount = 5) {
     const base = Array.isArray(recommendations) ? [...recommendations] : [];
     if (base.length >= minCount) return base.slice(0, minCount);
 
@@ -519,10 +786,19 @@ document.addEventListener("DOMContentLoaded", () => {
     const suggestions = Array.isArray(aiData?.suggestions) ? aiData.suggestions : [];
 
     if (ranked.length > 0) {
-      const rankedMinimum = ensureMinimumRankedRecommendations(ranked, 3);
-      renderRankedRecommendations(rankedMinimum);
-      renderQuickWinsFromRanked(rankedMinimum, habitData?.ai_guidance?.impact_summary);
-      renderGuidance(habitData?.ai_guidance, rankedMinimum);
+      // Store the full data for re-filtering
+      latestHabitData = habitData;
+      
+      // Apply goal filtering
+      const rankedMinimum = ensureMinimumRankedRecommendations(ranked, 5);
+      const filteredRanked = filterRecommendationsByGoals(rankedMinimum);
+      
+      // Re-assign goal names based on user's actual goals
+      const finalRanked = assignGoalsToRecommendations(filteredRanked);
+      
+      renderRankedRecommendations(finalRanked);
+      renderQuickWinsFromRanked(finalRanked, habitData?.ai_guidance?.impact_summary, habitData?.quick_wins);
+      renderGuidance(habitData?.ai_guidance, finalRanked);
       renderHabitInsights(habitData);
       statusText("Personalized recommendations updated.");
     } else {
@@ -562,13 +838,25 @@ document.addEventListener("DOMContentLoaded", () => {
     runAnalysisBtn.addEventListener("click", () => runAnalysis(latestGoal));
   }
 
+  // Goal filter change handler
+  if (goalFilterSelect) {
+    goalFilterSelect.addEventListener("change", (e) => {
+      selectedGoalFilter = e.target.value;
+      renderGoalChips();
+      refilterRecommendations();
+    });
+  }
+
   async function initialize() {
     renderDefaultQuickWins();
     renderGuidance(FALLBACK_GUIDANCE, FALLBACK_RANKED_RECOMMENDATIONS);
     renderHabitEmptyState("Loading habit intelligence...");
 
+    // Load all goals first for the filter
+    await loadAllGoals();
+
     latestGoal = await loadPrimaryGoal();
-    if (!latestGoal) {
+    if (!latestGoal && allGoals.length === 0) {
       renderNoGoalsState();
       statusText("No goal found. Running baseline analysis.");
     }

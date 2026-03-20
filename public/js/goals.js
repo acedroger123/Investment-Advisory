@@ -88,7 +88,7 @@ function createGoalCard(goal) {
                 align-items: center;
                 font-size: 0.8rem;
             ">
-                <span style="color: var(--text-muted);">📈 Expected Annual Return</span>
+                <span style="color: var(--text-muted);">Expected Annual Return</span>
                 <strong style="color: ${bench.color};">${bench.expected}% – ${bench.max}%</strong>
             </div>
             
@@ -236,11 +236,11 @@ function renderFeasibilityPanel(r) {
                 <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:8px;">Suggested adjustments:</p>
                 <div style="display:flex;flex-wrap:wrap;gap:8px;">
                     ${optA ? `<button type="button" class="btn btn-secondary btn-sm" onclick="applyFeasibilityOption('a')"
-                        title="${optA.description}">📅 Extend by ${optA.extra_years} Year${optA.extra_years > 1 ? 's' : ''}</button>` : ''}
+                        title="${optA.description}">Extend by ${optA.extra_years} Year${optA.extra_years > 1 ? 's' : ''}</button>` : ''}
                     ${optB ? `<button type="button" class="btn btn-secondary btn-sm" onclick="applyFeasibilityOption('b')"
-                        title="${optB.description}">💰 ${optB.label}</button>` : ''}
+                        title="${optB.description}">${optB.label}</button>` : ''}
                     ${optC && optC.available ? `<button type="button" class="btn btn-secondary btn-sm" onclick="applyFeasibilityOption('c')"
-                        title="${optC.description}">⚡ ${optC.label}</button>` : ''}
+                        title="${optC.description}">${optC.label}</button>` : ''}
                     <button type="button" class="btn btn-secondary btn-sm" style="opacity:0.6"
                         onclick="dismissFeasibilityPanel()">Keep Anyway</button>
                 </div>

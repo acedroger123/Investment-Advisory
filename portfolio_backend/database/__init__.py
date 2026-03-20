@@ -52,9 +52,9 @@ def init_db():
                 )
             )
             tables = [row[0] for row in result]
-            print(f"✅ PostgreSQL connected! Portfolio tables found: {', '.join(tables)}")
+            print(f"PostgreSQL connected! Portfolio tables found: {', '.join(tables)}")
             if len(tables) < 5:
-                print("⚠️  Some pa_* tables may be missing. Run _create_tables.js first.")
+                print("Some pa_* tables may be missing. Run _create_tables.js first.")
     except Exception as e:
-        print(f"❌ PostgreSQL connection failed: {e}")
+        print(f"PostgreSQL connection failed: {e}")
         raise

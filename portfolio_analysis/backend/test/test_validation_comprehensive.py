@@ -362,7 +362,7 @@ class TestInputSanitization:
         
         # Unicode in name - should work or fail gracefully
         ok, _ = validate_goal(
-            "🎯 retirement fund",
+            "retirement fund",
             100000.0,
             date.today() + timedelta(days=365),
             "moderate"

@@ -17,7 +17,7 @@
   <nav class="navbar">
     <div class="sidebar-header">
       <div class="nav-brand">
-        <span class="brand-icon">📈</span>
+        <span class="brand-icon"><i data-lucide="trending-up" size="20"></i></span>
         <span class="brand-text">AI Wealth</span>
       </div>
       <button class="sidebar-toggle" type="button" data-sidebar-toggle aria-label="Collapse sidebar" aria-expanded="true">
@@ -47,7 +47,7 @@
         <p class="subtitle">Real-time snapshot of your investment holdings and performance</p>
       </div>
       <div class="header-actions">
-        <button class="btn btn-icon" onclick="refreshPortfolio()" title="Refresh">🔄</button>
+        <button class="btn btn-icon" onclick="refreshPortfolio()" title="Refresh">Refresh</button>
       </div>
     </header>
 
@@ -57,7 +57,7 @@
       <select id="portfolioGoalSelect" class="goal-select" onchange="loadPortfolioData()">
         <option value="">Select a goal...</option>
       </select>
-      <span class="shared-badge">📊 Portfolio View</span>
+      <span class="shared-badge">Portfolio View</span>
     </div>
 
     <!-- Loading Indicator -->
@@ -72,7 +72,7 @@
       <!-- Summary Stats -->
       <section class="stats-grid">
         <div class="stat-card gradient-blue">
-          <div class="stat-icon">💰</div>
+          <div class="stat-icon"></div>
           <div class="stat-content">
             <span class="stat-label">Total Invested</span>
             <span class="stat-value" id="totalInvested">₹0</span>
@@ -80,7 +80,7 @@
           </div>
         </div>
         <div class="stat-card gradient-green">
-          <div class="stat-icon">📈</div>
+          <div class="stat-icon"></div>
           <div class="stat-content">
             <span class="stat-label">Current Value</span>
             <span class="stat-value" id="currentValue">₹0</span>
@@ -88,7 +88,7 @@
           </div>
         </div>
         <div class="stat-card gradient-purple">
-          <div class="stat-icon">📊</div>
+          <div class="stat-icon"></div>
           <div class="stat-content">
             <span class="stat-label">Unrealized P/L</span>
             <span class="stat-value" id="unrealizedPnl">₹0</span>
@@ -96,7 +96,7 @@
           </div>
         </div>
         <div class="stat-card gradient-orange">
-          <div class="stat-icon">🚀</div>
+          <div class="stat-icon"></div>
           <div class="stat-content">
             <span class="stat-label">Overall Return</span>
             <span class="stat-value" id="cagrValue">0%</span>
@@ -176,7 +176,7 @@
           </div>
           <div class="recent-transactions-list" id="recentTransactionsList">
             <div class="transaction-item empty-state">
-              <span class="rec-icon">📋</span>
+              <span class="rec-icon"></span>
               <span class="rec-text">No recent transactions. Add your first transaction to get
                 started.</span>
             </div>
@@ -189,7 +189,7 @@
     <!-- Empty State (when no goal selected) -->
     <div id="portfolioEmptyState" class="portfolio-empty-state">
       <div class="empty-state-content">
-        <div class="empty-state-icon">📊</div>
+        <div class="empty-state-icon"></div>
         <h2>Select a Goal</h2>
         <p>Choose a goal from the dropdown above to view your portfolio overview, holdings, and performance
           metrics.</p>
@@ -202,13 +202,15 @@
 
   <!-- Footer -->
   <footer class="footer">
-    <p>⚠️ <strong>Disclaimer:</strong> This is an educational system. It does not provide financial advice or
+    <p><strong>Disclaimer:</strong> This is an educational system. It does not provide financial advice or
       guarantee returns.</p>
   </footer>
 
+  <script src="https://unpkg.com/lucide@latest"></script>
   <script src="js/layout.js"></script>
   <script src="js/api.js"></script>
   <script src="js/portfolio.js"></script>
+  <script>if (window.lucide) lucide.createIcons();</script>
 </body>
 
 </html>

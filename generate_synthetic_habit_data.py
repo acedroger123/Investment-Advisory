@@ -23,4 +23,4 @@ df["is_habit"] = (
 ).astype(int)
 
 df.to_csv("data/synthetic_habits.csv", index=False)
-print("✅ Synthetic habit dataset created (500 records)")
+print("Synthetic habit dataset created (500 records)")

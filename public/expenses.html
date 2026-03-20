@@ -16,7 +16,7 @@
   <nav class="navbar">
     <div class="sidebar-header">
       <div class="nav-brand">
-        <span class="brand-icon">📈</span>
+        <span class="brand-icon"><i data-lucide="trending-up" size="20"></i></span>
         <span class="brand-text">AI Wealth</span>
       </div>
       <button class="sidebar-toggle" type="button" data-sidebar-toggle aria-label="Collapse sidebar" aria-expanded="true">
@@ -41,35 +41,35 @@
     <!-- Header -->
     <header class="page-header">
       <div class="header-content">
-        <h1>💳 Expense Tracker</h1>
+        <h1>Expense Tracker</h1>
         <p class="subtitle">Log your spending and get AI categorization.</p>
       </div>
       <div class="header-actions" style="display: flex; gap: 10px;">
         <input type="file" id="pdfUploadInput" accept="application/pdf" style="display: none;">
-        <button class="btn btn-secondary" id="uploadPdfBtn">📄 Upload PDF</button>
-        <button class="btn btn-secondary" id="syncGmailBtn">📧 Sync Gmail</button>
-        <button class="btn btn-primary" id="openAddModal">➕ Add Expense</button>
+        <button class="btn btn-secondary" id="uploadPdfBtn">Upload PDF</button>
+        <button class="btn btn-secondary" id="syncGmailBtn">Sync Gmail</button>
+        <button class="btn btn-primary" id="openAddModal">+ Add Expense</button>
       </div>
     </header>
 
     <!-- Stats Cards -->
     <section class="stats-grid">
       <div class="stat-card gradient-blue">
-        <div class="stat-icon">💰</div>
+        <div class="stat-icon"></div>
         <div class="stat-content">
           <span class="stat-label">Total Spent</span>
           <span class="stat-value" id="totalAmount">₹0.00</span>
         </div>
       </div>
       <div class="stat-card gradient-purple">
-        <div class="stat-icon">📌</div>
+        <div class="stat-icon"></div>
         <div class="stat-content">
           <span class="stat-label">Fixed Costs</span>
           <span class="stat-value" id="fixedStat">0%</span>
         </div>
       </div>
       <div class="stat-card gradient-orange">
-        <div class="stat-icon">🎯</div>
+        <div class="stat-icon"></div>
         <div class="stat-content">
           <span class="stat-label">Discretionary</span>
           <span class="stat-value" id="discretionaryStat">0%</span>
@@ -105,7 +105,7 @@
     <section class="charts-section">
       <div class="data-card">
         <div class="card-header">
-          <h3>✨ AI Insights</h3>
+          <h3>AI Insights</h3>
         </div>
         <div id="ai-insights-container" class="expense-ai-insights">
           <p class="expense-insight-empty">Log more expenses to generate AI insights.</p>
@@ -113,9 +113,42 @@
       </div>
       <div class="data-card">
         <div class="card-header">
-          <h3>🔍 Habit Detection</h3>
+          <h3>Habit Detection</h3>
         </div>
         <div id="habitText" class="expense-habit-detection">No patterns detected yet.</div>
+      </div>
+    </section>
+
+    <!-- Habit-Goal Conflict Analysis -->
+    <section class="data-section" style="margin-top: 1.5rem;">
+      <div class="data-card" style="grid-column: span 2;">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+          <h3>Habit-Goal Conflict Analysis</h3>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <label for="goalFilterSelect" style="font-size: 0.85rem; color: var(--text-muted);">Show:</label>
+            <select id="goalFilterSelect" class="dark-select">
+              <option value="top3">Top 3 Goals</option>
+              <option value="all">All Goals</option>
+              <option disabled>── Select Goal ──</option>
+            </select>
+          </div>
+        </div>
+        <div id="goalConflictContainer" class="goal-conflict-container">
+          <p class="expense-insight-empty">Add expenses and goals to see habit-goal conflict analysis.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Habit Recommendations -->
+    <section class="data-section" style="margin-top: 1.5rem;">
+      <div class="data-card" style="grid-column: span 2;">
+        <div class="card-header">
+          <h3>Habit Recommendations</h3>
+          <span style="font-size: 0.8rem; opacity: 0.6;">Personalized actions to improve your financial habits</span>
+        </div>
+        <div id="habitRecommendationsContainer" class="habit-recommendations-container">
+          <p class="expense-insight-empty">Add expenses to receive personalized habit recommendations.</p>
+        </div>
       </div>
     </section>
 
@@ -123,7 +156,7 @@
     <section class="data-section" style="margin-top: 1.5rem;">
       <div class="data-card" style="grid-column: span 2;">
         <div class="card-header">
-          <h3>📊 Category Stability (per Month)</h3>
+          <h3>Category Stability (per Month)</h3>
           <span style="font-size: 0.8rem; opacity: 0.6;">Higher score = more consistent spending</span>
         </div>
         <div class="table-wrapper">
@@ -151,7 +184,7 @@
     <section class="charts-section" style="margin-top: 1.5rem;">
       <div class="data-card">
         <div class="card-header">
-          <h3>⚠️ Overspending Flags</h3>
+          <h3>Overspending Flags</h3>
           <span style="font-size: 0.8rem; opacity: 0.6;">Transactions above 1.5× category median</span>
         </div>
         <div class="table-wrapper">
@@ -174,7 +207,7 @@
       </div>
       <div class="data-card">
         <div class="card-header">
-          <h3>🚨 Anomaly Detection</h3>
+          <h3>Anomaly Detection</h3>
           <span style="font-size: 0.8rem; opacity: 0.6;">Z-score &gt; 2.5 standard deviations</span>
         </div>
         <div class="table-wrapper">
@@ -201,7 +234,7 @@
     <section class="data-section" style="margin-top: 1.5rem;">
       <div class="data-card" style="grid-column: span 2;">
         <div class="card-header">
-          <h3>🗂️ Expense Clusters</h3>
+          <h3>Expense Clusters</h3>
           <span style="font-size: 0.8rem; opacity: 0.6;">KMeans clustering by amount, time of day, and day of week</span>
         </div>
         <div class="table-wrapper">
@@ -289,7 +322,7 @@
 
   <!-- Footer -->
   <footer class="footer">
-    <p>⚠️ <strong>Disclaimer:</strong> This is an educational system. It does not provide financial advice.</p>
+    <p><strong>Disclaimer:</strong> This is an educational system. It does not provide financial advice.</p>
   </footer>
 
   <script src="https://unpkg.com/lucide@latest"></script>

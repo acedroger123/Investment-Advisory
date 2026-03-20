@@ -68,6 +68,110 @@
       border-radius: var(--radius-lg);
       margin-top: 24px;
     }
+
+    /* Goal Filter Dropdown Styling */
+    .goal-filter-select {
+      padding: 10px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--glass-border);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-size: 0.9rem;
+      min-width: 220px;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 36px;
+      transition: all 0.2s ease;
+    }
+
+    .goal-filter-select:hover {
+      border-color: var(--color-primary);
+    }
+
+    .goal-filter-select:focus {
+      outline: none;
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
+
+    .goal-filter-select option {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      padding: 12px;
+    }
+
+    .goal-filter-card {
+      background: var(--bg-card);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      padding: 18px 22px;
+      margin-bottom: 20px;
+    }
+
+    .goal-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(99, 102, 241, 0.05));
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      border-radius: 24px;
+      font-size: 0.82rem;
+      color: var(--color-primary-light);
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    .goal-chip:hover {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(99, 102, 241, 0.1));
+      border-color: rgba(99, 102, 241, 0.4);
+      transform: translateY(-1px);
+    }
+
+    .goal-filter-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .goal-filter-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      color: var(--text-primary);
+      font-size: 0.95rem;
+    }
+
+    .goal-filter-controls {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .goals-count {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      background: var(--glass-bg);
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+
+    .goal-chips-container {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--glass-border);
+    }
   </style>
 </head>
 
@@ -76,7 +180,7 @@
   <nav class="navbar">
     <div class="sidebar-header">
       <div class="nav-brand">
-        <span class="brand-icon">📈</span>
+        <span class="brand-icon"><i data-lucide="trending-up" size="20"></i></span>
         <span class="brand-text">AI Wealth</span>
       </div>
       <button class="sidebar-toggle" type="button" data-sidebar-toggle aria-label="Collapse sidebar" aria-expanded="true">
@@ -128,6 +232,25 @@
       </span>
     </div>
 
+    <!-- Goal Filter Section -->
+    <div class="goal-filter-card">
+      <div class="goal-filter-header">
+        <div class="goal-filter-title">
+          <i data-lucide="target" style="color: var(--color-primary-light); width: 20px; height: 20px;"></i>
+          <span>Recommendations for Goals</span>
+        </div>
+        <div class="goal-filter-controls">
+          <select id="goalFilterSelect" class="dark-select">
+            <option value="top3">Top 3 Oldest Goals (Default)</option>
+            <option value="all">All Goals</option>
+            <option disabled>── Select Individual Goal ──</option>
+          </select>
+          <span id="selectedGoalsInfo" class="goals-count">Showing: 3 goals</span>
+        </div>
+      </div>
+      <div id="goalChips" class="goal-chips-container"></div>
+    </div>
+
     <!-- Content Grid -->
     <section class="data-section" style="grid-template-columns: 1fr 350px;">
       <!-- Prioritized Actions -->
@@ -149,7 +272,7 @@
         <!-- Quick Wins -->
         <div class="data-card">
           <div class="card-header">
-            <h3>⚡ Quick Wins</h3>
+            <h3>Quick Wins</h3>
           </div>
 
           <div id="quickWinsList"></div>
@@ -208,7 +331,7 @@
 
   <!-- Footer -->
   <footer class="footer">
-    <p>⚠️ <strong>Disclaimer:</strong> This is an educational system. It does not provide financial advice.</p>
+    <p><strong>Disclaimer:</strong> This is an educational system. It does not provide financial advice.</p>
   </footer>
 
   <script src="https://unpkg.com/lucide@latest"></script>

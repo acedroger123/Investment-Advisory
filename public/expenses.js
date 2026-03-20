@@ -11,6 +11,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const pdfInput = document.getElementById("pdfUploadInput");
   const aiInsightsContainer = document.getElementById("ai-insights-container");
   const habitText = document.getElementById("habitText");
+  const goalConflictContainer = document.getElementById("goalConflictContainer");
+  const goalFilterSelect = document.getElementById("goalFilterSelect");
+  const habitRecommendationsContainer = document.getElementById("habitRecommendationsContainer");
   const modalTitle = document.getElementById("expenseModalTitle");
   const saveExpenseBtn = document.getElementById("saveExpenseBtn");
   const categoryInput = document.getElementById("category");
@@ -20,6 +23,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let expenses = [];
   let editingExpenseId = null;
+  let cachedGoalConflicts = [];
 
   const escapeHtml = (value) =>
     String(value ?? "")
@@ -117,10 +121,10 @@ document.addEventListener("DOMContentLoaded", () => {
     tbody.innerHTML = rows.map((r) => {
       const score = Number(r.stablity_score ?? r.stability_score ?? 0);
       const rating = score >= 70
-        ? '<span style="color:#4ade80;">✅ Stable</span>'
+        ? '<span style="color:#4ade80;">Stable</span>'
         : score >= 40
-          ? '<span style="color:#fbbf24;">⚠️ Moderate</span>'
-          : '<span style="color:#f87171;">❌ Unstable</span>';
+          ? '<span style="color:#fbbf24;">Moderate</span>'
+          : '<span style="color:#f87171;">Unstable</span>';
 
       return `<tr>
         <td>${escapeHtml(r.month)}</td>
@@ -143,7 +147,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const flagged = rows.filter((r) => r.is_overspending);
     if (flagged.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#4ade80;">✅ No overspending detected across all categories.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#4ade80;">No overspending detected across all categories.</td></tr>';
       return;
     }
 
@@ -154,7 +158,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <td>${escapeHtml(date)}</td>
         <td>${escapeHtml(r.category)}</td>
         <td style="font-weight:600;">₹${Number(r.amount).toLocaleString("en-IN")}</td>
-        <td><span style="color:#f87171; font-weight:600;">⚠️ Over Budget</span></td>
+        <td><span style="color:#f87171; font-weight:600;">Over Budget</span></td>
       </tr>`;
     }).join("");
   }
@@ -170,7 +174,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const flagged = rows.filter((r) => r.is_anomaly);
     if (flagged.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#4ade80;">✅ No statistical anomalies detected.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#4ade80;">No statistical anomalies detected.</td></tr>';
       return;
     }
 
@@ -181,7 +185,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <td>${escapeHtml(date)}</td>
         <td>${escapeHtml(r.category)}</td>
         <td style="font-weight:600;">₹${Number(r.amount).toLocaleString("en-IN")}</td>
-        <td><span style="color:#fb923c; font-weight:600;">🚨 Anomaly</span></td>
+        <td><span style="color:#fb923c; font-weight:600;">Anomaly</span></td>
       </tr>`;
     }).join("");
   }
@@ -196,9 +200,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const colorMap = {
-      low: { color: "#4ade80", label: "🟢 Low" },
-      medium: { color: "#fbbf24", label: "🟡 Medium" },
-      high: { color: "#f87171", label: "🔴 High" }
+      low: { color: "#4ade80", label: "Low" },
+      medium: { color: "#fbbf24", label: "Medium" },
+      high: { color: "#f87171", label: "High" }
     };
 
     tbody.innerHTML = rows.map((r) => {
@@ -239,31 +243,79 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (habitResponse.ok) {
       const payload = habitResponse.data || {};
+      const habitDetected = payload.habit_detected;
+      const habitCategory = payload.habit_category || "No specific pattern";
+      const habitIntensity = payload.habit_intensity || "Low";
       const confidenceRaw = Number(payload.habit_confidence ?? 0);
       const confidencePct = Number.isFinite(confidenceRaw)
         ? Math.round((confidenceRaw <= 1 ? confidenceRaw * 100 : confidenceRaw))
         : 0;
       const intervention = payload.intervention_level || "Low";
-      const summary = payload.unified_summary || "Habit analysis completed.";
+      const analyzedCategory = payload.analyzed_category || "N/A";
+      const spendingProfile = payload.spending_profile || {};
       const conflictScoreRaw = Number(payload.goal_conflict?.overall_conflict_score);
       const conflictScore = Number.isFinite(conflictScoreRaw)
         ? `${(conflictScoreRaw * 100).toFixed(1)}%`
         : "N/A";
       const alerts = Array.isArray(payload.transaction_alert) ? payload.transaction_alert : [];
+      const primaryStrategy = payload.primary_strategy || "";
+
+      const intensityColor = habitIntensity === "High" ? "#ef4444" : habitIntensity === "Medium" ? "#f59e0b" : "#22c55e";
+      const interventionColor = intervention === "High" ? "#ef4444" : intervention === "Medium" ? "#f59e0b" : "#22c55e";
 
       habitText.innerHTML = `
-        <div class="expense-habit-metric">
-          <strong>Intervention:</strong> ${escapeHtml(intervention)}
-          <span>|</span>
-          <strong>Confidence:</strong> ${confidencePct}%
-          <span>|</span>
-          <strong>Goal Conflict:</strong> ${escapeHtml(conflictScore)}
+        <div class="expense-habit-detection-result" style="margin-bottom: 12px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <span style="font-size: 1.1rem; font-weight: 600; color: ${habitDetected ? '#f59e0b' : '#22c55e'};">
+              ${habitDetected ? 'Habit Detected' : 'No Strong Habit Detected'}
+            </span>
+          </div>
+          ${habitDetected ? `
+            <div style="background: var(--glass-bg); border-radius: 8px; padding: 12px; margin-bottom: 10px;">
+              <div style="font-weight: 500; color: var(--text-primary); margin-bottom: 4px;">
+                ${escapeHtml(habitCategory)}
+              </div>
+              <div style="font-size: 0.85rem; color: var(--text-muted);">
+                Category: ${escapeHtml(analyzedCategory.charAt(0).toUpperCase() + analyzedCategory.slice(1))}
+              </div>
+            </div>
+          ` : ''}
         </div>
-        <div class="expense-habit-summary">${escapeHtml(summary)}</div>
+        <div class="expense-habit-metric" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px;">
+          <div style="background: var(--glass-bg); border-radius: 6px; padding: 8px; text-align: center;">
+            <div style="font-size: 0.75rem; color: var(--text-muted);">Intensity</div>
+            <div style="font-weight: 600; color: ${intensityColor};">${escapeHtml(habitIntensity)}</div>
+          </div>
+          <div style="background: var(--glass-bg); border-radius: 6px; padding: 8px; text-align: center;">
+            <div style="font-size: 0.75rem; color: var(--text-muted);">Confidence</div>
+            <div style="font-weight: 600;">${confidencePct}%</div>
+          </div>
+          <div style="background: var(--glass-bg); border-radius: 6px; padding: 8px; text-align: center;">
+            <div style="font-size: 0.75rem; color: var(--text-muted);">Intervention</div>
+            <div style="font-weight: 600; color: ${interventionColor};">${escapeHtml(intervention)}</div>
+          </div>
+          <div style="background: var(--glass-bg); border-radius: 6px; padding: 8px; text-align: center;">
+            <div style="font-size: 0.75rem; color: var(--text-muted);">Goal Conflict</div>
+            <div style="font-weight: 600;">${escapeHtml(conflictScore)}</div>
+          </div>
+        </div>
+        ${spendingProfile.avg_weekly_frequency ? `
+          <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;">
+            <strong>Spending Pattern:</strong> ~${spendingProfile.avg_weekly_frequency}x/week, 
+            ${Math.round((spendingProfile.consistency || 0) * 100)}% consistent, 
+            avg Rs.${(spendingProfile.average_spend || 0).toLocaleString('en-IN')}/transaction
+          </div>
+        ` : ''}
+        ${primaryStrategy ? `
+          <div style="background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; padding: 8px 12px; border-radius: 4px; margin-bottom: 10px;">
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 2px;">Recommended Action</div>
+            <div style="font-size: 0.85rem; color: var(--text-primary);">${escapeHtml(primaryStrategy)}</div>
+          </div>
+        ` : ''}
         ${alerts.length > 0
-          ? `<ul class="expense-habit-alerts">${alerts
+          ? `<ul class="expense-habit-alerts" style="margin: 0; padding-left: 16px; font-size: 0.85rem;">${alerts
             .slice(0, 3)
-            .map((alert) => `<li>${escapeHtml(alert)}</li>`)
+            .map((alert) => `<li style="margin-bottom: 4px;">${escapeHtml(alert)}</li>`)
             .join("")}</ul>`
           : ""}
       `;
@@ -272,6 +324,233 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const fallbackMessage = messageFromPayload(habitResponse.data, "Habit engine unavailable right now.");
     habitText.innerHTML = `<p class="expense-insight-empty">${escapeHtml(fallbackMessage)}</p>`;
+  }
+
+  function updateGoalFilterDropdown(goalConflicts) {
+    if (!goalFilterSelect) return;
+
+    const currentValue = goalFilterSelect.value;
+    const dynamicOptions = goalFilterSelect.querySelectorAll("option[data-dynamic='true']");
+    dynamicOptions.forEach(opt => opt.remove());
+
+    if (goalConflicts && goalConflicts.length > 0) {
+      goalConflicts.forEach((conflict, idx) => {
+        const option = document.createElement("option");
+        option.value = `goal_${idx}`;
+        option.textContent = conflict.goal_name;
+        option.setAttribute("data-dynamic", "true");
+        goalFilterSelect.appendChild(option);
+      });
+    }
+
+    if (goalFilterSelect.querySelector(`option[value="${currentValue}"]`)) {
+      goalFilterSelect.value = currentValue;
+    } else {
+      goalFilterSelect.value = "top3";
+    }
+  }
+
+  function renderGoalConflicts(goalConflicts, filterMode = "top3") {
+    if (!goalConflictContainer) return;
+
+    if (!goalConflicts || goalConflicts.length === 0) {
+      goalConflictContainer.innerHTML = `<p class="expense-insight-empty">No goal conflict data available. Add goals and expenses to see analysis.</p>`;
+      return;
+    }
+
+    let displayConflicts;
+    if (filterMode === "top3") {
+      displayConflicts = goalConflicts.slice(0, 3);
+    } else if (filterMode === "all") {
+      displayConflicts = goalConflicts;
+    } else if (filterMode.startsWith("goal_")) {
+      const idx = parseInt(filterMode.replace("goal_", ""), 10);
+      displayConflicts = goalConflicts[idx] ? [goalConflicts[idx]] : [];
+    } else {
+      displayConflicts = goalConflicts.slice(0, 3);
+    }
+
+    const getSeverityColor = (severity) => {
+      switch (severity) {
+        case "Critical": return "#dc2626";
+        case "High": return "#ef4444";
+        case "Medium": return "#f59e0b";
+        default: return "#22c55e";
+      }
+    };
+
+    const getSeverityBg = (severity) => {
+      switch (severity) {
+        case "Critical": return "rgba(220, 38, 38, 0.1)";
+        case "High": return "rgba(239, 68, 68, 0.1)";
+        case "Medium": return "rgba(245, 158, 11, 0.1)";
+        default: return "rgba(34, 197, 94, 0.1)";
+      }
+    };
+
+    const html = displayConflicts.map((conflict, index) => {
+      const severityColor = getSeverityColor(conflict.severity);
+      const severityBg = getSeverityBg(conflict.severity);
+      const conflictPct = Math.round((conflict.conflict_score || 0) * 100);
+      const monthlyRequired = conflict.monthly_required || 0;
+
+      return `
+        <div class="goal-conflict-card" style="background: ${severityBg}; border: 1px solid ${severityColor}20; border-radius: 10px; padding: 16px; margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+            <div>
+              <div style="font-weight: 600; font-size: 1rem; color: var(--text-primary); margin-bottom: 4px;">
+                ${escapeHtml(conflict.goal_name)}
+              </div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">
+                ${escapeHtml(conflict.goal_type || "General")} | Priority: ${conflict.priority || 3}
+              </div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 0.75rem; color: var(--text-muted);">Conflict Score</div>
+              <div style="font-weight: 700; font-size: 1.2rem; color: ${severityColor};">${conflictPct}%</div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+            <div style="flex: 1; background: var(--glass-bg); border-radius: 6px; padding: 8px; text-align: center;">
+              <div style="font-size: 0.7rem; color: var(--text-muted);">Severity</div>
+              <div style="font-weight: 600; color: ${severityColor};">${escapeHtml(conflict.severity)}</div>
+            </div>
+            <div style="flex: 1; background: var(--glass-bg); border-radius: 6px; padding: 8px; text-align: center;">
+              <div style="font-size: 0.7rem; color: var(--text-muted);">Monthly Required</div>
+              <div style="font-weight: 600;">Rs.${monthlyRequired.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>
+            </div>
+          </div>
+          <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">
+            ${escapeHtml(conflict.explanation || "")}
+          </div>
+          ${conflict.recommended_action ? `
+            <div style="background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; padding: 8px 12px; border-radius: 4px;">
+              <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 2px;">Recommended Action</div>
+              <div style="font-size: 0.8rem; color: var(--text-primary);">${escapeHtml(conflict.recommended_action)}</div>
+            </div>
+          ` : ""}
+        </div>
+      `;
+    }).join("");
+
+    const summary = goalConflicts.length > 0 ? `
+      <div style="margin-bottom: 16px; padding: 12px; background: var(--glass-bg); border-radius: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+          <div>
+            <span style="font-size: 0.85rem; color: var(--text-muted);">Analyzing </span>
+            <span style="font-weight: 600; color: var(--text-primary);">${goalConflicts.length} goal${goalConflicts.length !== 1 ? 's' : ''}</span>
+            <span style="font-size: 0.85rem; color: var(--text-muted);"> | Showing ${displayConflicts.length}</span>
+          </div>
+          <div style="font-size: 0.85rem;">
+            <span style="color: var(--text-muted);">Highest Conflict: </span>
+            <span style="font-weight: 600; color: ${getSeverityColor(goalConflicts[0]?.severity)};">
+              ${Math.round((goalConflicts[0]?.conflict_score || 0) * 100)}% (${goalConflicts[0]?.severity || 'Low'})
+            </span>
+          </div>
+        </div>
+      </div>
+    ` : "";
+
+    goalConflictContainer.innerHTML = summary + html;
+  }
+
+  function renderHabitRecommendations(recommendations) {
+    if (!habitRecommendationsContainer) return;
+
+    if (!recommendations || recommendations.length === 0) {
+      habitRecommendationsContainer.innerHTML = `<p class="expense-insight-empty">No recommendations available. Add more expenses to receive personalized suggestions.</p>`;
+      return;
+    }
+
+    const getDifficultyColor = (difficulty) => {
+      switch (difficulty?.toLowerCase()) {
+        case "easy": return "#22c55e";
+        case "medium": return "#f59e0b";
+        case "hard": return "#ef4444";
+        default: return "#6b7280";
+      }
+    };
+
+    const getTierColor = (tier) => {
+      switch (tier) {
+        case "Critical": return "#dc2626";
+        case "High": return "#f59e0b";
+        case "Medium": return "#3b82f6";
+        default: return "#22c55e";
+      }
+    };
+
+    const html = recommendations.map((rec, index) => {
+      const score = Math.round((rec.score || 0) * 100);
+      const tierColor = getTierColor(rec.score_tier);
+      const difficultyColor = getDifficultyColor(rec.difficulty_level);
+      const timelineReduction = rec.goal_timeline_reduction_months || 0;
+      const successBefore = rec.goal_success_probability_before || 0;
+      const successAfter = rec.goal_success_probability_after || 0;
+      const impactsGoal = rec.impacts_goal || "General Savings";
+
+      return `
+        <div class="habit-recommendation-card" style="background: var(--glass-bg); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px; margin-bottom: 12px; border-left: 4px solid ${tierColor};">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+            <div style="flex: 1;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                <span style="background: ${tierColor}20; color: ${tierColor}; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600;">
+                  #${index + 1} ${escapeHtml(rec.score_tier || "Recommended")}
+                </span>
+                <span style="background: ${difficultyColor}20; color: ${difficultyColor}; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600;">
+                  ${escapeHtml(rec.difficulty_level || "Medium")}
+                </span>
+              </div>
+              <div style="font-size: 0.95rem; color: var(--text-primary); line-height: 1.5;">
+                ${escapeHtml(rec.recommendation)}
+              </div>
+            </div>
+            <div style="text-align: right; min-width: 70px;">
+              <div style="font-size: 0.7rem; color: var(--text-muted);">Score</div>
+              <div style="font-weight: 700; font-size: 1.1rem; color: ${tierColor};">${score}%</div>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px;">
+            <div style="background: rgba(34, 197, 94, 0.1); border-radius: 6px; padding: 8px; text-align: center;">
+              <div style="font-size: 0.65rem; color: var(--text-muted);">Timeline Saved</div>
+              <div style="font-weight: 600; font-size: 0.85rem; color: #22c55e;">${timelineReduction.toFixed(1)} mo</div>
+            </div>
+            <div style="background: rgba(59, 130, 246, 0.1); border-radius: 6px; padding: 8px; text-align: center;">
+              <div style="font-size: 0.65rem; color: var(--text-muted);">Success Rate</div>
+              <div style="font-weight: 600; font-size: 0.85rem; color: #3b82f6;">${successBefore}% → ${successAfter}%</div>
+            </div>
+            <div style="background: rgba(139, 92, 246, 0.1); border-radius: 6px; padding: 8px; text-align: center;">
+              <div style="font-size: 0.65rem; color: var(--text-muted);">Impacts</div>
+              <div style="font-weight: 600; font-size: 0.75rem; color: #8b5cf6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(impactsGoal)}">${escapeHtml(impactsGoal)}</div>
+            </div>
+          </div>
+          ${rec.why_ranked ? `
+            <div style="font-size: 0.8rem; color: var(--text-muted); font-style: italic;">
+              ${escapeHtml(rec.why_ranked)}
+            </div>
+          ` : ""}
+        </div>
+      `;
+    }).join("");
+
+    const summaryHtml = `
+      <div style="margin-bottom: 16px; padding: 12px; background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%); border-radius: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+          <div>
+            <span style="font-weight: 600; color: var(--text-primary);">${recommendations.length} Personalized Recommendations</span>
+            <span style="font-size: 0.85rem; color: var(--text-muted);"> based on your spending habits and goals</span>
+          </div>
+          <div style="font-size: 0.85rem;">
+            <span style="color: var(--text-muted);">Top Priority: </span>
+            <span style="font-weight: 600; color: ${getTierColor(recommendations[0]?.score_tier)};">
+              ${recommendations[0]?.score_tier || "N/A"}
+            </span>
+          </div>
+        </div>
+      </div>
+    `;
+
+    habitRecommendationsContainer.innerHTML = summaryHtml + html;
   }
 
   function clearDynamicCategories() {
@@ -617,6 +896,23 @@ document.addEventListener("DOMContentLoaded", () => {
     renderAIInsights(cards);
     renderHabitDetection(habitRes);
 
+    if (habitRes.ok && habitRes.data?.goal_conflict?.goal_conflicts) {
+      cachedGoalConflicts = habitRes.data.goal_conflict.goal_conflicts;
+      updateGoalFilterDropdown(cachedGoalConflicts);
+      const filterMode = goalFilterSelect ? goalFilterSelect.value : "top3";
+      renderGoalConflicts(cachedGoalConflicts, filterMode);
+    } else {
+      cachedGoalConflicts = [];
+      updateGoalFilterDropdown([]);
+      renderGoalConflicts([], "top3");
+    }
+
+    if (habitRes.ok && habitRes.data?.ranked_recommendations) {
+      renderHabitRecommendations(habitRes.data.ranked_recommendations);
+    } else {
+      renderHabitRecommendations([]);
+    }
+
     if (!financialProfileRes.ok && !aiAnalysisRes.ok && !habitRes.ok) {
       console.warn("AI services unreachable. Ensure Python APIs are running.");
     }
@@ -677,6 +973,12 @@ document.addEventListener("DOMContentLoaded", () => {
       handleAction(uploadPdfBtn, "/api/upload-statement", "POST", formData);
       pdfInput.value = "";
     };
+  }
+
+  if (goalFilterSelect) {
+    goalFilterSelect.addEventListener("change", () => {
+      renderGoalConflicts(cachedGoalConflicts, goalFilterSelect.value);
+    });
   }
 
   fetchExpenses();

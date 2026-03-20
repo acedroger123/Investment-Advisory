@@ -16,7 +16,7 @@
     <nav class="navbar">
         <div class="sidebar-header">
             <div class="nav-brand">
-                <span class="brand-icon">📈</span>
+                <span class="brand-icon"><i data-lucide="trending-up" size="20"></i></span>
                 <span class="brand-text">AI Wealth</span>
             </div>
             <button class="sidebar-toggle" type="button" data-sidebar-toggle aria-label="Collapse sidebar" aria-expanded="true">
@@ -40,7 +40,7 @@
     <main class="main-content">
         <header class="page-header">
             <div class="header-content">
-                <h1>⚖️ Portfolio Rebalancing</h1>
+                <h1>Portfolio Rebalancing</h1>
                 <p class="subtitle">Analyze allocation drift, assess risk, and get smart recommendations to optimize
                     your portfolio</p>
             </div>
@@ -52,27 +52,27 @@
             <select id="goalSelect" class="goal-select">
                 <option value="">Select a goal...</option>
             </select>
-            <button class="btn btn-primary" id="analyzeBtn" onclick="analyzePortfolio()">🔍 Analyze Portfolio</button>
+            <button class="btn btn-primary" id="analyzeBtn" onclick="analyzePortfolio()">Analyze Portfolio</button>
         </div>
 
         <!-- SECTION 1: Portfolio Summary -->
         <section id="portfolioSummary" class="stats-grid" style="display: none;">
             <div class="stat-card gradient-green">
-                <div class="stat-icon">💰</div>
+                <div class="stat-icon"></div>
                 <div class="stat-content">
                     <span class="stat-label">Portfolio Value</span>
                     <span class="stat-value" id="totalValue">₹0</span>
                 </div>
             </div>
             <div class="stat-card gradient-blue">
-                <div class="stat-icon">💵</div>
+                <div class="stat-icon"></div>
                 <div class="stat-content">
                     <span class="stat-label">Total Invested</span>
                     <span class="stat-value" id="totalInvested">₹0</span>
                 </div>
             </div>
             <div class="stat-card gradient-purple">
-                <div class="stat-icon">📈</div>
+                <div class="stat-icon"></div>
                 <div class="stat-content">
                     <span class="stat-label">Unrealized P&L</span>
                     <span class="stat-value" id="unrealizedPnl">₹0</span>
@@ -80,7 +80,7 @@
                 </div>
             </div>
             <div class="stat-card gradient-orange">
-                <div class="stat-icon">🎯</div>
+                <div class="stat-icon"></div>
                 <div class="stat-content">
                     <span class="stat-label">Goal Progress</span>
                     <span class="stat-value" id="goalProgress">0%</span>
@@ -91,13 +91,13 @@
         <!-- Rebalancing Status Indicator -->
         <section id="rebalanceStatus" class="rb-status-section" style="display: none;">
             <div class="rb-status-card" id="statusCard">
-                <div class="rb-status-icon" id="statusIcon">✅</div>
+                <div class="rb-status-icon" id="statusIcon"></div>
                 <div class="rb-status-content">
                     <h3 id="statusTitle">Portfolio is Balanced</h3>
                     <p id="statusReason">No rebalancing action needed at this time.</p>
                     <div class="rb-status-meta">
-                        <span class="rb-meta-item">📅 Last evaluated: <strong id="lastEvalDate">--</strong></span>
-                        <span class="rb-meta-item">🔄 Drift threshold: <strong>5%</strong></span>
+                        <span class="rb-meta-item">Last evaluated: <strong id="lastEvalDate">--</strong></span>
+                        <span class="rb-meta-item">Drift threshold: <strong>5%</strong></span>
                     </div>
                 </div>
             </div>
@@ -108,7 +108,7 @@
             <div class="rb-two-col">
                 <div class="data-card">
                     <div class="card-header">
-                        <h3>📊 Asset Allocation Overview</h3>
+                        <h3>Asset Allocation Overview</h3>
                     </div>
                     <div class="rb-alloc-charts">
                         <div class="rb-alloc-chart-item">
@@ -128,7 +128,7 @@
 
                 <div class="data-card">
                     <div class="card-header">
-                        <h3>🛡️ Risk Level Indicator</h3>
+                        <h3>Risk Level Indicator</h3>
                     </div>
                     <div class="rb-risk-content">
                         <div class="rb-risk-gauge-container">
@@ -164,7 +164,7 @@
         <section id="driftSection" style="display: none;">
             <div class="data-card">
                 <div class="card-header">
-                    <h3>↔️ Allocation Drift Details</h3>
+                    <h3>Allocation Drift Details</h3>
                     <span class="badge badge-info">Per-Stock Analysis</span>
                 </div>
                 <div class="table-wrapper">
@@ -193,7 +193,7 @@
             <div class="rb-two-col">
                 <div class="data-card">
                     <div class="card-header">
-                        <h3>💡 Rebalancing Recommendations</h3>
+                        <h3>Rebalancing Recommendations</h3>
                     </div>
                     <div class="recommendations-list" id="recommendationsList">
                         <div class="empty-state-small">
@@ -201,13 +201,13 @@
                         </div>
                     </div>
                     <div class="rb-disclaimer">
-                        ⚠️ These are suggestions only — no real trades are executed.
+                        These are suggestions only — no real trades are executed.
                     </div>
                 </div>
 
                 <div class="data-card">
                     <div class="card-header">
-                        <h3>🚨 Portfolio Issues</h3>
+                        <h3>Portfolio Issues</h3>
                         <span class="badge badge-warning" id="issuesBadge">0 Issues</span>
                     </div>
                     <div class="issues-list" id="issuesList">
@@ -223,7 +223,7 @@
         <section id="adjustmentsSection" style="display: none;">
             <div class="data-card">
                 <div class="card-header">
-                    <h3>⚖️ Stock-Level Adjustment Suggestions</h3>
+                    <h3>Stock-Level Adjustment Suggestions</h3>
                     <span class="badge badge-info" id="strategyBadge">Equal Weight</span>
                 </div>
                 <div class="table-wrapper">
@@ -252,7 +252,7 @@
         <section id="goalImpactSection" style="display: none;">
             <div class="data-card">
                 <div class="card-header">
-                    <h3>🎯 Goal Impact Preview</h3>
+                    <h3>Goal Impact Preview</h3>
                 </div>
                 <div class="rb-goal-impact-grid">
                     <div class="rb-goal-gauge-wrapper">
@@ -304,14 +304,16 @@
     </main>
 
     <footer class="footer">
-        <p>⚠️ <strong>Disclaimer:</strong> Rebalancing suggestions are educational and advisory only. No real trades are
+        <p><strong>Disclaimer:</strong> Rebalancing suggestions are educational and advisory only. No real trades are
             executed. Always do your own research before investing.</p>
     </footer>
 
+    <script src="https://unpkg.com/lucide@latest"></script>
     <script src="js/layout.js"></script>
     <script src="js/api.js"></script>
     <script src="js/charts.js"></script>
     <script src="js/rebalance.js"></script>
+    <script>if (window.lucide) lucide.createIcons();</script>
 </body>
 
 </html>

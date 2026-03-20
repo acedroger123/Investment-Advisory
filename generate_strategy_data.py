@@ -56,5 +56,5 @@ df = pd.DataFrame(rows, columns=[
 os.makedirs("data", exist_ok=True)
 df.to_csv("strategy_training_data.csv", index=False)
 
-print("✅ Synthetic strategy training data generated!")
+print("Synthetic strategy training data generated!")
 print(df.head())

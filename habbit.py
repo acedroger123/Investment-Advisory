@@ -91,15 +91,15 @@ class RuleEnhancedHabitDetector:
     def _rule_score(self, behavior_features: dict) -> float:
         score = 0.0
 
-        if float(behavior_features.get("avg_weekly_frequency", 0)) >= 4:
+        if float(behavior_features.get("avg_weekly_frequency", 0)) >= 2:
             score += 0.25
-        if float(behavior_features.get("consistency", 0.0)) >= 0.6:
+        if float(behavior_features.get("consistency", 0.0)) >= 0.4:
             score += 0.2
-        if float(behavior_features.get("weeks_active", 0)) >= 8:
+        if float(behavior_features.get("weeks_active", 0)) >= 4:
             score += 0.2
-        if float(behavior_features.get("weekend_ratio", 0.0)) >= 0.55:
+        if float(behavior_features.get("weekend_ratio", 0.0)) >= 0.4:
             score += 0.15
-        if float(behavior_features.get("night_ratio", 0.0)) >= 0.45:
+        if float(behavior_features.get("night_ratio", 0.0)) >= 0.25:
             score += 0.2
 
         return min(max(score, 0.0), 1.0)
@@ -116,9 +116,9 @@ class RuleEnhancedHabitDetector:
             return self._rule_score(behavior_features)
 
     def _habit_intensity(self, combined_score: float) -> str:
-        if combined_score >= 0.75:
+        if combined_score >= 0.6:
             return "High"
-        if combined_score >= 0.5:
+        if combined_score >= 0.35:
             return "Medium"
         return "Low"
 

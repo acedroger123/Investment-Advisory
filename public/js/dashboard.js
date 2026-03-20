@@ -243,14 +243,14 @@ function updateFeasibilitySummary(feasibility) {
 async function loadHabitGoalConflictSummary() {
     try {
         const data = await API.Insights.getHabitGoalConflict();
-        renderHabitConflictSummary(data);
+        renderHabitConflictSummary(data, null, currentGoalId);
     } catch (error) {
         console.warn('Error loading habit goal-conflict insights:', error);
         renderHabitConflictSummary(null, 'Habit-goal conflict engine is offline or missing input data.');
     }
 }
 
-function renderHabitConflictSummary(data, fallbackMessage = null) {
+function renderHabitConflictSummary(data, fallbackMessage = null, selectedGoalId = null) {
     const summaryEl = document.getElementById('habitConflictDashboardSummary');
     const metaEl = document.getElementById('habitConflictDashboardMeta');
     const roadmapEl = document.getElementById('habitConflictDashboardRoadmap');
@@ -264,29 +264,135 @@ function renderHabitConflictSummary(data, fallbackMessage = null) {
         return;
     }
 
-    const summary = data.unified_summary || 'No major habit-goal conflict detected for this cycle.';
-    const alignment = data.ai_guidance?.financial_alignment_score || {};
-    const impact = data.ai_guidance?.impact_summary || {};
-    const conflictScore = Number(data.goal_conflict?.overall_conflict_score ?? 0);
-
-    summaryEl.textContent = summary;
-    metaEl.innerHTML = `
-        <div><strong>Conflict Score:</strong> ${(conflictScore * 100).toFixed(1)}%</div>
-        <div><strong>Alignment:</strong> ${alignment.label || '--'} (${Number(alignment.score_pct || 0).toFixed(1)}%)</div>
-        <div><strong>Potential Savings:</strong> ${formatCurrency(impact.potential_savings_monthly || 0)}/month</div>
-    `;
-
-    roadmapEl.innerHTML = '';
-    const roadmap = Array.isArray(data.ai_guidance?.personalized_roadmap_suggestion)
-        ? data.ai_guidance.personalized_roadmap_suggestion
+    const goalConflicts = Array.isArray(data.goal_conflict?.goal_conflicts) 
+        ? data.goal_conflict.goal_conflicts 
         : [];
 
-    roadmap.slice(0, 3).forEach(step => {
-        const li = document.createElement('li');
-        li.style.marginBottom = '6px';
-        li.textContent = step;
-        roadmapEl.appendChild(li);
+    // Get selected goal name from dropdown
+    const goalSelect = document.getElementById('goalSelect');
+    let selectedGoalName = '';
+    if (goalSelect) {
+        const selectedOption = goalSelect.options[goalSelect.selectedIndex];
+        if (selectedOption) {
+            selectedGoalName = selectedOption.textContent.split(' (Target:')[0].trim();
+        }
+    }
+
+    // Debug logging
+    console.log('Habit Conflict Debug:', {
+        selectedGoalId,
+        selectedGoalName,
+        goalConflictsCount: goalConflicts.length,
+        goalConflicts: goalConflicts.map(gc => ({ id: gc.goal_id, name: gc.goal_name }))
     });
+
+    let selectedGoalConflict = null;
+
+    if (goalConflicts.length > 0) {
+        // Method 1: Try to match by goal_id (most reliable)
+        if (selectedGoalId) {
+            const numericGoalId = parseInt(selectedGoalId, 10);
+            selectedGoalConflict = goalConflicts.find(gc => 
+                gc.goal_id !== null && gc.goal_id !== undefined && 
+                parseInt(gc.goal_id, 10) === numericGoalId
+            );
+        }
+
+        // Method 2: Try exact name match
+        if (!selectedGoalConflict && selectedGoalName) {
+            selectedGoalConflict = goalConflicts.find(gc => 
+                gc.goal_name && gc.goal_name.toLowerCase() === selectedGoalName.toLowerCase()
+            );
+        }
+
+        // Method 3: Try partial name match (contains)
+        if (!selectedGoalConflict && selectedGoalName) {
+            selectedGoalConflict = goalConflicts.find(gc => 
+                gc.goal_name && (
+                    gc.goal_name.toLowerCase().includes(selectedGoalName.toLowerCase()) ||
+                    selectedGoalName.toLowerCase().includes(gc.goal_name.toLowerCase())
+                )
+            );
+        }
+
+        // Method 4: Last resort - use first one
+        if (!selectedGoalConflict) {
+            console.warn('Could not match goal, using first conflict');
+            selectedGoalConflict = goalConflicts[0];
+        }
+    }
+
+    const alignment = data.ai_guidance?.financial_alignment_score || {};
+    const impact = data.ai_guidance?.impact_summary || {};
+
+    if (selectedGoalConflict) {
+        const conflictScore = Number(selectedGoalConflict.conflict_score ?? 0);
+        const severity = selectedGoalConflict.severity || 'Low';
+        const goalName = selectedGoalConflict.goal_name || 'Selected Goal';
+        const explanation = selectedGoalConflict.explanation || data.unified_summary || 'No major conflict detected.';
+
+        summaryEl.textContent = explanation;
+        // Show expense data used for analysis
+        const expenseSummary = data.expense_summary;
+        const expenseInfo = expenseSummary 
+            ? `Based on ${expenseSummary.expense_count} expenses over ${expenseSummary.date_range_weeks} weeks`
+            : '';
+            
+        metaEl.innerHTML = `
+            <div><strong>Goal:</strong> ${goalName}</div>
+            <div><strong>Conflict Score:</strong> ${(conflictScore * 100).toFixed(1)}%</div>
+            <div><strong>Severity:</strong> ${severity}</div>
+            <div><strong>Alignment:</strong> ${alignment.label || '--'} (${Number(alignment.score_pct || 0).toFixed(1)}%)</div>
+            <div><strong>Potential Savings:</strong> ${formatCurrency(impact.potential_savings_monthly || 0)}/month</div>
+            ${expenseInfo ? `<div style="margin-top:6px;font-size:0.8rem;color:var(--text-muted);">${expenseInfo}</div>` : ''}
+        `;
+
+        roadmapEl.innerHTML = '';
+        const roadmap = Array.isArray(data.ai_guidance?.personalized_roadmap_suggestion)
+            ? data.ai_guidance.personalized_roadmap_suggestion
+            : [];
+
+        const goalSpecificRoadmap = roadmap.map(step => 
+            step.replace(/core goals|goals/gi, goalName)
+        );
+
+        goalSpecificRoadmap.slice(0, 3).forEach(step => {
+            const li = document.createElement('li');
+            li.style.marginBottom = '6px';
+            li.textContent = step;
+            roadmapEl.appendChild(li);
+        });
+
+        if (selectedGoalConflict.recommended_action) {
+            const actionLi = document.createElement('li');
+            actionLi.style.marginBottom = '6px';
+            actionLi.style.fontWeight = '500';
+            actionLi.textContent = selectedGoalConflict.recommended_action;
+            roadmapEl.appendChild(actionLi);
+        }
+    } else {
+        const summary = data.unified_summary || 'No major habit-goal conflict detected for this cycle.';
+        const conflictScore = Number(data.goal_conflict?.overall_conflict_score ?? 0);
+
+        summaryEl.textContent = summary;
+        metaEl.innerHTML = `
+            <div><strong>Conflict Score:</strong> ${(conflictScore * 100).toFixed(1)}%</div>
+            <div><strong>Alignment:</strong> ${alignment.label || '--'} (${Number(alignment.score_pct || 0).toFixed(1)}%)</div>
+            <div><strong>Potential Savings:</strong> ${formatCurrency(impact.potential_savings_monthly || 0)}/month</div>
+        `;
+
+        roadmapEl.innerHTML = '';
+        const roadmap = Array.isArray(data.ai_guidance?.personalized_roadmap_suggestion)
+            ? data.ai_guidance.personalized_roadmap_suggestion
+            : [];
+
+        roadmap.slice(0, 3).forEach(step => {
+            const li = document.createElement('li');
+            li.style.marginBottom = '6px';
+            li.textContent = step;
+            roadmapEl.appendChild(li);
+        });
+    }
 }
 
 function destroyExpenseChart(chartId) {
@@ -521,9 +627,98 @@ async function loadExpenseDashboardWidgets() {
     ]);
 
     if (habitResult.ok && habitResult.data) {
-        const summary = habitResult.data.unified_summary || 'Behavioral analysis completed.';
-        const conflictScore = Number(habitResult.data.goal_conflict?.overall_conflict_score ?? 0);
-        const suffix = Number.isFinite(conflictScore) ? ` (Conflict ${(conflictScore * 100).toFixed(1)}%)` : '';
+        // Get goal-specific insight based on selected goal
+        const goalConflicts = Array.isArray(habitResult.data.goal_conflict?.goal_conflicts) 
+            ? habitResult.data.goal_conflict.goal_conflicts 
+            : [];
+        
+        // Get selected goal info from dropdown
+        const goalSelect = document.getElementById('goalSelect');
+        let selectedGoalName = '';
+        let selectedGoalId = currentGoalId; // Use the global currentGoalId
+        
+        if (goalSelect && goalSelect.selectedIndex > 0) {
+            const selectedOption = goalSelect.options[goalSelect.selectedIndex];
+            if (selectedOption) {
+                selectedGoalName = selectedOption.textContent.split(' (Target:')[0].trim();
+                // Also get ID from option value if currentGoalId isn't set
+                if (!selectedGoalId) {
+                    selectedGoalId = selectedOption.value;
+                }
+            }
+        }
+        
+        console.log('AI Insight Debug:', {
+            currentGoalId,
+            selectedGoalId,
+            selectedGoalName,
+            availableGoals: goalConflicts.map(gc => ({ id: gc.goal_id, name: gc.goal_name }))
+        });
+        
+        // Find the conflict for the selected goal
+        let selectedConflict = null;
+        if (selectedGoalId && goalConflicts.length > 0) {
+            const numericGoalId = parseInt(selectedGoalId, 10);
+            
+            // Method 1: Try by goal_id (most reliable)
+            selectedConflict = goalConflicts.find(gc => 
+                gc.goal_id !== null && gc.goal_id !== undefined && 
+                parseInt(gc.goal_id, 10) === numericGoalId
+            );
+            
+            // Method 2: Fallback to exact name match
+            if (!selectedConflict && selectedGoalName) {
+                selectedConflict = goalConflicts.find(gc => 
+                    gc.goal_name && gc.goal_name.toLowerCase() === selectedGoalName.toLowerCase()
+                );
+            }
+            
+            // Method 3: Partial name match
+            if (!selectedConflict && selectedGoalName) {
+                selectedConflict = goalConflicts.find(gc => 
+                    gc.goal_name && (
+                        gc.goal_name.toLowerCase().includes(selectedGoalName.toLowerCase()) ||
+                        selectedGoalName.toLowerCase().includes(gc.goal_name.toLowerCase())
+                    )
+                );
+            }
+            
+            console.log('AI Insight Debug: Selected conflict:', selectedConflict?.goal_name || 'none found');
+        }
+        
+        let summary, conflictScore;
+        if (selectedConflict) {
+            // Use the selected goal's specific data
+            const goalName = selectedConflict.goal_name || selectedGoalName || 'your goal';
+            conflictScore = Number(selectedConflict.conflict_score ?? 0);
+            const severity = selectedConflict.severity || 'Low';
+            const explanation = selectedConflict.explanation || '';
+            const recommendedAction = selectedConflict.recommended_action || '';
+            
+            // Build a goal-specific message
+            if (explanation) {
+                summary = explanation;
+            } else if (conflictScore > 0.5) {
+                summary = `High conflict: '${goalName}' may be delayed because spending behavior is competing with required monthly goal funding.`;
+            } else if (conflictScore > 0.3) {
+                summary = `Moderate conflict: Your spending habits have some impact on '${goalName}'. Consider reviewing discretionary expenses.`;
+            } else {
+                summary = `Low conflict: Your spending habits are mostly aligned with '${goalName}' goal progress.`;
+            }
+            
+            // Add key alert and recommendation if available
+            if (recommendedAction && !summary.includes(recommendedAction)) {
+                summary += ` ${recommendedAction}`;
+            }
+        } else {
+            // Fallback to unified summary (but this is less ideal)
+            summary = habitResult.data.unified_summary || 'Behavioral analysis completed.';
+            conflictScore = Number(habitResult.data.goal_conflict?.overall_conflict_score ?? 0);
+        }
+        
+        const suffix = Number.isFinite(conflictScore) && conflictScore > 0 
+            ? ` (Conflict ${(conflictScore * 100).toFixed(1)}%)` 
+            : '';
         setExpenseBehaviorMessage(`AI: ${summary}${suffix}`);
         return;
     }
@@ -677,7 +872,7 @@ function updateRecommendations(data, habitInsights = null) {
 
     container.innerHTML = `
         <div class="recommendation-item">
-            <span class="rec-icon">💡</span>
+            <span class="rec-icon"></span>
             <span class="rec-text">No personalized recommendations yet. Add expenses and goal progress data to unlock AI insights.</span>
         </div>
     `;
@@ -685,20 +880,20 @@ function updateRecommendations(data, habitInsights = null) {
 
 function getRecIcon(type) {
     const icons = {
-        'buy': '📈',
-        'sell': '📉',
-        'rebalance': '⚖️',
-        'diversify': '🎯',
-        'protect_position': '🛡️',
-        'adjust_plan': '🧮',
-        'align_with_goal': '🧭',
-        'liquidity_buffer': '💧',
-        'automate_small_sip': '🔁',
-        'risk': '⚠️',
-        'goal': '🏆',
-        'info': '💡'
+        'buy': '',
+        'sell': '',
+        'rebalance': '',
+        'diversify': '',
+        'protect_position': '',
+        'adjust_plan': '',
+        'align_with_goal': '',
+        'liquidity_buffer': '',
+        'automate_small_sip': '',
+        'risk': '',
+        'goal': '',
+        'info': ''
     };
-    return icons[type] || '💡';
+    return icons[type] || '';
 }
 
 /**
@@ -732,7 +927,7 @@ async function loadAlerts(goalId) {
 }
 
 function getAlertIcon(severity) {
-    return severity === 'critical' ? '🚨' : severity === 'warning' ? '⚠️' : 'ℹ️';
+    return severity === 'critical' ? '' : severity === 'warning' ? '' : '';
 }
 
 async function dismissAlert(alertId) {
@@ -772,13 +967,46 @@ async function createGoal(event) {
 }
 
 /**
- * Refresh all data
+ * Refresh all data while preserving current goal selection
  */
 async function refreshData() {
+    const btn = document.querySelector('.goal-selector-container .btn-icon');
+    if (btn) {
+        btn.classList.add('btn-clicked');
+        setTimeout(() => btn.classList.remove('btn-clicked'), 200);
+    }
+
     showToast('Refreshing data...', 'info');
-    await loadGoals();
-    if (currentGoalId) {
-        await loadGoalData();
+
+    const previousGoalId = currentGoalId;
+
+    try {
+        const goals = await API.Goals.list();
+        const select = document.getElementById('goalSelect');
+
+        select.innerHTML = '<option value="">Select a goal...</option>';
+
+        goals.forEach(goal => {
+            const option = document.createElement('option');
+            option.value = goal.id;
+            option.textContent = `${goal.name} (Target: ${formatCurrency(goal.target_value)})`;
+            select.appendChild(option);
+        });
+
+        if (previousGoalId && goals.some(g => g.id == previousGoalId)) {
+            select.value = previousGoalId;
+            currentGoalId = previousGoalId;
+        } else if (goals.length > 0) {
+            select.value = goals[0].id;
+            currentGoalId = goals[0].id;
+        }
+
+        if (currentGoalId) {
+            await loadGoalData();
+        }
+    } catch (error) {
+        console.error('Error refreshing data:', error);
+        showToast('Failed to refresh data', 'error');
     }
 }
 

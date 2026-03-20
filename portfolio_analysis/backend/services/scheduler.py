@@ -29,7 +29,7 @@ class PriceUpdateScheduler:
     def start(self):
         """Start the background scheduler."""
         if not settings.SCHEDULER_ENABLED:
-            logger.info("📊 Stock price scheduler is disabled in config")
+            logger.info("Stock price scheduler is disabled in config")
             return
         
         self.scheduler = AsyncIOScheduler()
@@ -43,22 +43,22 @@ class PriceUpdateScheduler:
         self.scheduler.start()
         self.is_running = True
         logger.info(
-            f"📊 Started stock price scheduler (every {settings.PRICE_UPDATE_INTERVAL_MINUTES} minutes)"
+            f"Started stock price scheduler (every {settings.PRICE_UPDATE_INTERVAL_MINUTES} minutes)"
         )
-        print(f"📊 Started stock price scheduler (every {settings.PRICE_UPDATE_INTERVAL_MINUTES} minutes)")
+        print(f"Started stock price scheduler (every {settings.PRICE_UPDATE_INTERVAL_MINUTES} minutes)")
     
     def stop(self):
         """Stop the background scheduler."""
         if self.scheduler and self.scheduler.running:
             self.scheduler.shutdown(wait=False)
             self.is_running = False
-            logger.info("📊 Stopped stock price scheduler")
-            print("📊 Stopped stock price scheduler")
+            logger.info("Stopped stock price scheduler")
+            print("Stopped stock price scheduler")
     
     async def _update_prices_job(self):
         """Job to update prices for all portfolio stocks."""
         try:
-            print(f"📊 Running scheduled price update at {datetime.now()}")
+            print(f"Running scheduled price update at {datetime.now()}")
             
             # Get all unique stock symbols from per-goal holdings
             db = SessionLocal()
@@ -69,7 +69,7 @@ class PriceUpdateScheduler:
                 db.close()
             
             if not symbols:
-                print("📊 No stocks in portfolio to update")
+                print("No stocks in portfolio to update")
                 self.last_run = datetime.now()
                 self.last_update_count = 0
                 self.last_updated_symbols = []
@@ -85,21 +85,21 @@ class PriceUpdateScheduler:
                     if price is not None:
                         updated_count += 1
                         updated_symbols.append(symbol)
-                        print(f"  ✓ {symbol}: ₹{price:.2f}")
+                        print(f"  {symbol}: Rs.{price:.2f}")
                     else:
-                        print(f"  ✗ {symbol}: Failed to fetch price")
+                        print(f"  {symbol}: Failed to fetch price")
                 except Exception as e:
-                    print(f"  ✗ {symbol}: Error - {e}")
+                    print(f"  {symbol}: Error - {e}")
             
             self.last_run = datetime.now()
             self.last_update_count = updated_count
             self.last_updated_symbols = updated_symbols
             
-            print(f"📊 Price update complete: {updated_count}/{len(symbols)} stocks updated")
+            print(f"Price update complete: {updated_count}/{len(symbols)} stocks updated")
             
         except Exception as e:
             logger.error(f"Error in price update job: {e}")
-            print(f"📊 Error in price update: {e}")
+            print(f"Error in price update: {e}")
     
     async def run_update_now(self) -> Dict:
         """Manually trigger a price update."""

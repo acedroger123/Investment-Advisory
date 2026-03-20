@@ -14,7 +14,7 @@
     <nav class="navbar">
         <div class="sidebar-header">
             <div class="nav-brand">
-                <span class="brand-icon">📈</span>
+                <span class="brand-icon"><i data-lucide="trending-up" size="20"></i></span>
                 <span class="brand-text">AI Wealth</span>
             </div>
             <button class="sidebar-toggle" type="button" data-sidebar-toggle aria-label="Collapse sidebar" aria-expanded="true">
@@ -49,14 +49,14 @@
             <select id="goalSelect" class="goal-select">
                 <option value="">Select a goal...</option>
             </select>
-            <button class="btn btn-primary" onclick="runMonteCarloSimulation()">🎲 Run Simulation</button>
-            <button class="btn btn-secondary" onclick="runStressTest()">📉 Stress Test</button>
+            <button class="btn btn-primary" onclick="runMonteCarloSimulation()">Run Simulation</button>
+            <button class="btn btn-secondary" onclick="runStressTest()">Stress Test</button>
         </div>
 
         <!-- Simulation Results -->
         <section id="simulationResults" style="display: none;">
             <div class="results-header">
-                <h2>📊 Simulation Results</h2>
+                <h2>Simulation Results</h2>
                 <span class="simulation-date" id="simulationDate"></span>
             </div>
 
@@ -120,7 +120,7 @@
 
             <!-- Disclaimer -->
             <div class="disclaimer-box">
-                <strong>⚠️ Important Disclaimer:</strong>
+                <strong>Important Disclaimer:</strong>
                 <p id="disclaimerText">This simulation is probabilistic and based on historical data. Actual results may
                     vary significantly. Past performance does not guarantee future results.</p>
             </div>
@@ -129,7 +129,7 @@
         <!-- Stress Test Results -->
         <section id="stressTestResults" style="display: none;">
             <div class="results-header">
-                <h2>📉 Stress Test Results</h2>
+                <h2>Stress Test Results</h2>
             </div>
 
             <div class="data-card">
@@ -168,7 +168,7 @@
         <!-- Empty State -->
         <section id="emptyState" class="empty-state">
             <div class="empty-content">
-                <h3>🎲 Monte Carlo Simulation</h3>
+                <h3>Monte Carlo Simulation</h3>
                 <p>Select a goal and run a simulation to estimate your probability of achieving it.</p>
                 <p class="text-muted">The simulation runs thousands of random market scenarios based on your shared
                     portfolio to give you a probabilistic outlook.</p>
@@ -177,14 +177,16 @@
     </main>
 
     <footer class="footer">
-        <p>⚠️ <strong>Disclaimer:</strong> This is an educational system. Simulation results are probabilistic, not
+        <p><strong>Disclaimer:</strong> This is an educational system. Simulation results are probabilistic, not
             predictive.</p>
     </footer>
 
+    <script src="https://unpkg.com/lucide@latest"></script>
     <script src="js/layout.js"></script>
     <script src="js/api.js"></script>
     <script src="js/charts.js"></script>
     <script src="js/simulation.js"></script>
+    <script>if (window.lucide) lucide.createIcons();</script>
 </body>
 
 </html>

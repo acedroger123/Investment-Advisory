@@ -27,21 +27,36 @@ async function loadGoals() {
 
 async function runMonteCarloSimulation() {
     const goalId = document.getElementById('goalSelect').value;
+    const runBtn = document.querySelector('button[onclick="runMonteCarloSimulation()"]');
 
     if (!goalId) {
         showToast('Please select a goal first', 'error');
         return;
     }
 
-    showToast('Running simulation (this may take a moment)...', 'info');
+    // Show loading state on button
+    if (runBtn) {
+        runBtn.disabled = true;
+        runBtn.dataset.originalText = runBtn.textContent;
+        runBtn.innerHTML = '<span class="spinner-small"></span> Running...';
+    }
+    
+    // Show loading toast
+    showToast('Running Monte Carlo simulation...', 'info');
 
     try {
-        const result = await API.Simulation.runMonteCarlo(goalId, 1000);
+        // Use 500 simulations for faster results (still statistically valid)
+        const result = await API.Simulation.runMonteCarlo(goalId, 500);
         displayMonteCarloResults(result);
         showToast('Simulation complete!', 'success');
 
     } catch (error) {
         showToast(`Error: ${error.message}`, 'error');
+    } finally {
+        if (runBtn) {
+            runBtn.disabled = false;
+            runBtn.innerHTML = runBtn.dataset.originalText || 'Run Simulation';
+        }
     }
 }
 
@@ -195,7 +210,7 @@ function displayStressTestResults(result) {
     // Recommendation
     document.getElementById('stressRecommendation').innerHTML = `
         <div class="recommendation-box">
-            <strong>💡 Recommendation:</strong>
+            <strong>Recommendation:</strong>
             <p>${result.recommendation}</p>
         </div>
     `;
@@ -305,6 +320,28 @@ style.textContent = `
         max-width: 300px;
         height: 200px;
         margin: 0 auto;
+    }
+    
+    /* Button loading state */
+    .spinner-small {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        margin-right: 6px;
+        vertical-align: middle;
+    }
+    
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    
+    button:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
     }
 `;
 document.head.appendChild(style);

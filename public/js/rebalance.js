@@ -46,7 +46,7 @@ async function analyzePortfolio() {
     // Show loading state
     const btn = document.getElementById('analyzeBtn');
     btn.disabled = true;
-    btn.textContent = '⏳ Analyzing...';
+    btn.textContent = 'Analyzing...';
     showToast('Analyzing portfolio...', 'info');
 
     try {
@@ -144,7 +144,7 @@ function renderRebalanceStatus(analysis, rebalancing) {
 
     if (status === 'REBALANCE_SUGGESTED' || issues.length > 0) {
         statusCard.className = 'rb-status-card rb-status-warning';
-        statusIcon.textContent = '⚠️';
+        statusIcon.textContent = '';
         statusTitle.textContent = 'Rebalancing Recommended';
 
         const reasons = issues.map(i => i.type).slice(0, 3);
@@ -153,12 +153,12 @@ function renderRebalanceStatus(analysis, rebalancing) {
             : 'Portfolio drift exceeds threshold';
     } else if (status === 'NO_HOLDINGS') {
         statusCard.className = 'rb-status-card rb-status-neutral';
-        statusIcon.textContent = '📭';
+        statusIcon.textContent = '';
         statusTitle.textContent = 'No Holdings Found';
         statusReason.textContent = 'Add stocks to your goal to see rebalancing analysis.';
     } else {
         statusCard.className = 'rb-status-card rb-status-ok';
-        statusIcon.textContent = '✅';
+        statusIcon.textContent = '';
         statusTitle.textContent = 'Portfolio is Balanced';
         statusReason.textContent = 'No rebalancing action needed at this time.';
     }
@@ -337,7 +337,7 @@ function renderRecommendations(analysis) {
     if (recommendations.length === 0) {
         container.innerHTML = `
             <div class="success-message">
-                <span class="icon">✅</span>
+                <span class="icon"></span>
                 <p>No specific recommendations at this time. Your portfolio looks healthy!</p>
             </div>
         `;
@@ -367,7 +367,7 @@ function renderIssues(analysis) {
     if (issues.length === 0) {
         container.innerHTML = `
             <div class="success-message">
-                <span class="icon">✅</span>
+                <span class="icon"></span>
                 <p>No issues detected! Your portfolio looks healthy.</p>
             </div>
         `;
@@ -389,34 +389,34 @@ function renderIssues(analysis) {
 function getIssueIcon(type) {
     const key = (type || '').toLowerCase();
     const icons = {
-        concentration: '⚠️',
-        diversification: '📊',
-        drift: '↔️',
-        underweight: '⬇️',
-        overweight: '⬆️',
-        no_holdings: '📭',
-        low_progress: '🎯',
-        goal_progress: '🎯',
-        deadline: '⏳'
+        concentration: '',
+        diversification: '',
+        drift: '',
+        underweight: '',
+        overweight: '',
+        no_holdings: '',
+        low_progress: '',
+        goal_progress: '',
+        deadline: ''
     };
-    return icons[key] || '⚠️';
+    return icons[key] || '';
 }
 
 function getRecIcon(type) {
     const key = (type || '').toLowerCase();
     const icons = {
-        buy: '🛒',
-        sell: '💰',
-        hold: '⏸️',
-        rebalance: '⚖️',
-        diversify: '🔀',
-        reduce: '📉',
-        increase: '📈',
-        invest_more: '📈',
-        extend_deadline: '📅',
-        aggressive_invest: '⚡'
+        buy: '',
+        sell: '',
+        hold: '',
+        rebalance: '',
+        diversify: '',
+        reduce: '',
+        increase: '',
+        invest_more: '',
+        extend_deadline: '',
+        aggressive_invest: ''
     };
-    return icons[key] || '💡';
+    return icons[key] || '';
 }
 
 // ==========================================
@@ -449,7 +449,7 @@ function renderAdjustmentSuggestions(rebalancing) {
     if (suggestions.length === 0) {
         tbody.innerHTML = `
             <tr class="empty-row">
-                <td colspan="6">Your portfolio is well-balanced. No adjustments needed. 🎉</td>
+                <td colspan="6">Your portfolio is well-balanced. No adjustments needed.</td>
             </tr>
         `;
         return;
@@ -489,10 +489,10 @@ function renderGoalImpact(portfolio, analysis) {
     const onTrack = analysis.on_track;
     const onTrackEl = document.getElementById('impactOnTrack');
     if (onTrack === true) {
-        onTrackEl.textContent = '✅ Yes';
+        onTrackEl.textContent = 'Yes';
         onTrackEl.style.color = 'var(--color-accent-green)';
     } else if (onTrack === false) {
-        onTrackEl.textContent = '❌ Behind Schedule';
+        onTrackEl.textContent = 'Behind Schedule';
         onTrackEl.style.color = 'var(--color-accent-red)';
     } else {
         onTrackEl.textContent = '--';

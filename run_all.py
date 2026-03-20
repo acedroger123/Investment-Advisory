@@ -26,7 +26,7 @@ def start_services():
         {"name": "PORTFOLIO_ANALYSIS", "port": 8005, "cmd": ["uvicorn", "portfolio_app:app", "--port", "8005"]}
     ]
 
-    print("🚀 Starting AI Wealth Ecosystem...")
+    print("Starting AI Wealth Ecosystem...")
 
     for service in commands:
         # text=False is mandatory to manually handle UTF-8 symbols like ₹ or emojis
@@ -38,7 +38,7 @@ def start_services():
             shell=(os.name == 'nt') 
         )
         processes.append(p)
-        print(f"⏳ Waiting for {service['name']} on port {service['port']}...")
+        print(f"Waiting for {service['name']} on port {service['port']}...")
         
         # Readiness check (gives ML models 30s to load from .joblib files)
         ready = False
@@ -49,11 +49,11 @@ def start_services():
             time.sleep(1)
         
         if ready: 
-            print(f"✅ {service['name']} is UP.")
+            print(f"{service['name']} is UP.")
         else: 
-            print(f"⚠️ {service['name']} timed out. It might still be loading ML models.")
+            print(f"{service['name']} timed out. It might still be loading ML models.")
 
-    print("\n✅ All systems are online. Keep this window open.")
+    print("\nAll systems are online. Keep this window open.")
     print("--------------------------------------------------")
     return processes
 
@@ -77,11 +77,11 @@ if __name__ == "__main__":
                 sys.stdout.flush() # Ensures logs appear immediately
                 
     except KeyboardInterrupt:
-        print("\n🛑 Shutting down AI Wealth Ecosystem...")
+        print("\nShutting down AI Wealth Ecosystem...")
     except Exception as e:
-        print(f"\n❌ Unexpected Crash: {e}")
+        print(f"\nUnexpected Crash: {e}")
     finally:
         # Crucial: Clean up all background processes so ports aren't blocked
         for p in active_processes:
             p.terminate()
-        print("👋 Cleanup complete. All services stopped.")
+        print("Cleanup complete. All services stopped.")

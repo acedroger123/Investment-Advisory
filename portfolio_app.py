@@ -23,12 +23,12 @@ from portfolio_backend.services.scheduler import price_scheduler
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     # Startup
-    print("🚀 Starting Portfolio Analysis Engine...")
+    print("Starting Portfolio Analysis Engine...")
     init_db()
     price_scheduler.start()
     yield
     # Shutdown
-    print("👋 Shutting down Portfolio Analysis Engine...")
+    print("Shutting down Portfolio Analysis Engine...")
     price_scheduler.stop()
 
 
@@ -46,7 +46,7 @@ app = FastAPI(
     - Stress Testing under adverse market conditions
     - Drawdown Analysis & Risk Metrics
     
-    ⚠️ **Disclaimer**: This is an educational system for decision support only.
+    **Disclaimer**: This is an educational system for decision support only.
     """,
     version="1.0.0",
     lifespan=lifespan

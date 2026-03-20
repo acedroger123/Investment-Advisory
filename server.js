@@ -1798,7 +1798,7 @@ app.get("/api/stock-search", async (req, res) => {
         type: quote.quoteType || quote.typeDisp || 'Stock'
       }))
 
-    console.log("✅ Returning", formatted.length, "results")
+    console.log("Returning", formatted.length, "results")
     if (formatted.length > 0) {
       console.log("First result:", formatted[0].symbol, "-", formatted[0].name)
     }
@@ -1807,7 +1807,7 @@ app.get("/api/stock-search", async (req, res) => {
     res.json(formatted)
 
   } catch (err) {
-    console.error("\n❌ Stock Search Error:", err.message)
+    console.error("\nStock Search Error:", err.message)
     res.status(500).json({
       error: "Search failed",
       details: err.message
@@ -2128,7 +2128,20 @@ app.get("/api/habit-goalconflict", async (req, res) => {
   if (!req.session.user_id) return res.status(401).json({ message: "Unauthorized" })
 
   try {
-    const [expensesResult, goalsResult, userResult] = await Promise.all([
+    // Fetch goals from FastAPI (same source as dashboard dropdown) to ensure matching goal IDs
+    let fastapiGoals = []
+    try {
+      const goalsResponse = await axios.get('http://localhost:8005/api/goals', {
+        headers: { 'x-user-id': req.session.user_id.toString() },
+        timeout: 3000
+      })
+      fastapiGoals = Array.isArray(goalsResponse.data) ? goalsResponse.data : []
+    } catch (err) {
+      console.error('[Habit API] CRITICAL: Could not fetch goals from FastAPI:', err.message)
+      // DO NOT fall back to legacy PostgreSQL goals - they may contain deleted goals
+    }
+
+    const [expensesResult, userResult] = await Promise.all([
       pool.query(
         `SELECT amount, category, date
          FROM expenses
@@ -2136,13 +2149,6 @@ app.get("/api/habit-goalconflict", async (req, res) => {
            AND date::date <= CURRENT_DATE
            AND COALESCE(nature, 'Variable') != 'Fixed'
          ORDER BY date DESC`,
-        [req.session.user_id]
-      ),
-      pool.query(
-        `SELECT name, target_amount, saved_amount, duration_months, priority
-         FROM user_goals
-         WHERE user_id = $1 AND COALESCE(status, 'active') <> 'deleted'
-         ORDER BY id DESC`,
         [req.session.user_id]
       ),
       pool.query(
@@ -2154,7 +2160,6 @@ app.get("/api/habit-goalconflict", async (req, res) => {
     ])
 
     const expenses = expensesResult.rows || []
-    const goals = goalsResult.rows || []
     const user = userResult.rows[0] || {}
 
     if (expenses.length < 2) {
@@ -2210,12 +2215,29 @@ app.get("/api/habit-goalconflict", async (req, res) => {
     const weekendRatio = weekendTxCount / parsedExpenses.length
 
     const categorySpend = new Map()
+    const categoryCount = new Map()
     for (const e of parsedExpenses) {
       const key = mapExpenseCategoryToHabitCategory(e.category)
       categorySpend.set(key, (categorySpend.get(key) || 0) + e.amount)
+      categoryCount.set(key, (categoryCount.get(key) || 0) + 1)
     }
     const dominantCategory = Array.from(categorySpend.entries())
       .sort((a, b) => b[1] - a[1])[0]?.[0] || "shopping"
+
+    // Calculate monthly expense breakdown by category (for realistic savings calculations)
+    const monthlyExpensesByCategory = {}
+    const sortedCategories = Array.from(categorySpend.entries()).sort((a, b) => b[1] - a[1])
+    for (const [cat, total] of sortedCategories) {
+      // Convert to monthly based on the expense span
+      const monthlyAmount = spanWeeks > 0 ? (total / spanWeeks) * 4.33 : total
+      monthlyExpensesByCategory[cat] = {
+        monthly_total: Number(monthlyAmount.toFixed(2)),
+        transaction_count: categoryCount.get(cat) || 0,
+        average_transaction: Number((total / (categoryCount.get(cat) || 1)).toFixed(2))
+      }
+    }
+    const totalMonthlyDiscretionary = Object.values(monthlyExpensesByCategory)
+      .reduce((sum, c) => sum + c.monthly_total, 0)
 
     const annualIncome = annualIncomeFromRange(user.annual_income_range)
     const savingsRatio = savingsRatioFromBucket(user.savings_percent)
@@ -2223,15 +2245,41 @@ app.get("/api/habit-goalconflict", async (req, res) => {
       ? (annualIncome * savingsRatio) / 12
       : 0
 
-    const activeGoals = goals.map((g) => ({
-      goal_name: g.name || "Goal",
-      goal_type: "General",
-      target_amount: Number(g.target_amount || 0),
-      current_amount: Number(g.saved_amount || 0),
-      timeline_months: Math.max(1, Number(g.duration_months || 1)),
-      priority: priorityToScore(g.priority),
-      protected_categories: []
-    })).filter((g) => g.target_amount > 0)
+    // ONLY use FastAPI goals (same source as dashboard dropdown) for consistency
+    // Do NOT fall back to legacy PostgreSQL goals to avoid stale/deleted goals appearing
+    let activeGoals = []
+    console.log('[Habit API] FastAPI goals received:', fastapiGoals.length, 'goals')
+    
+    // FastAPI goals structure: { id, name, target_amount, target_value, deadline, current_value, ... }
+    activeGoals = fastapiGoals.map((g) => {
+      const targetAmount = Number(g.target_amount || g.target_value || 0)
+      const currentAmount = Number(g.current_value || 0)
+      // Calculate timeline_months from deadline
+      let timelineMonths = 12
+      if (g.deadline) {
+        const deadlineDate = new Date(g.deadline)
+        const now = new Date()
+        const diffMs = deadlineDate - now
+        timelineMonths = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24 * 30)))
+      }
+      console.log('[Habit API] Processing goal:', { id: g.id, name: g.name, target: targetAmount })
+      return {
+        goal_id: g.id,
+        goal_name: g.name || "Goal",
+        goal_type: "General",
+        target_amount: targetAmount,
+        current_amount: currentAmount,
+        timeline_months: timelineMonths,
+        priority: 3, // Default priority for FastAPI goals
+        protected_categories: []
+      }
+    }).filter((g) => g.target_amount > 0)
+    
+    console.log('[Habit API] Final active goals:', activeGoals.map(g => ({ id: g.goal_id, name: g.goal_name })))
+    
+    if (activeGoals.length === 0) {
+      console.warn('[Habit API] No goals from FastAPI, habit analysis may be limited')
+    }
 
     const payload = {
       avg_weekly_frequency: avgWeeklyFrequency,
@@ -2245,6 +2293,13 @@ app.get("/api/habit-goalconflict", async (req, res) => {
       transaction_hour: 20,
       monthly_savings_capacity: Number(monthlySavingsCapacity.toFixed(2)),
       active_goals: activeGoals,
+      // NEW: Actual expense data for realistic savings calculations
+      expense_breakdown: {
+        total_monthly_discretionary: Number(totalMonthlyDiscretionary.toFixed(2)),
+        category_details: monthlyExpensesByCategory,
+        expense_count: parsedExpenses.length,
+        date_range_weeks: spanWeeks
+      },
       profile_context: {
         occupation: user.occupation || "Other",
         risk_label: Number(user.risk_label || 3),
@@ -2395,8 +2450,8 @@ app.post("/api/assess-goal-feasibility", async (req, res) => {
     ========================================= */
 
 app.listen(3000, () => {
-  console.log("✅ Server running on http://localhost:3000")
-  console.log("📊 Using Yahoo Finance for stock data (no API key needed)")
-  console.log("🔗 Portfolio Analysis API proxy: /pa-api/* → http://localhost:8005/api/*")
-  console.log("💡 Make sure FastAPI is running: uvicorn portfolio_app:app --port 8005")
+  console.log("Server running on http://localhost:3000")
+  console.log("Using Yahoo Finance for stock data (no API key needed)")
+  console.log("Portfolio Analysis API proxy: /pa-api/* -> http://localhost:8005/api/*")
+  console.log("Make sure FastAPI is running: uvicorn portfolio_app:app --port 8005")
 })

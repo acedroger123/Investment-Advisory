@@ -1,0 +1,196 @@
+@startuml
+hide circle
+skinparam linetype ortho
+
+' ============================================================
+'  PostgreSQL — SignUp_SignIn_DB (Node.js server.js :3000)
+' ============================================================
+
+entity newusers {
+  *id : SERIAL <<PK>>
+  --
+  name : VARCHAR(50)
+  email : VARCHAR(254) <<UNIQUE>>
+  password : VARCHAR(255)
+  consent_given : BOOLEAN
+  questionnaire_completed : BOOLEAN
+  dob : DATE
+  country : VARCHAR(100)
+  occupation : VARCHAR(100)
+  annual_income_range : INTEGER
+  age_group : INTEGER
+  savings_percent : INTEGER
+  investment_experience : INTEGER
+  instruments_used_count : INTEGER
+  financial_comfort : INTEGER
+  loss_reaction : INTEGER
+  return_priority : INTEGER
+  volatility_comfort : INTEGER
+  risk_label : INTEGER
+  notif_email : BOOLEAN
+  notif_push : BOOLEAN
+  notif_monthly_report : BOOLEAN
+}
+
+entity expenses {
+  *id : SERIAL <<PK>>
+  --
+  user_id : INTEGER <<FK>>
+  amount : NUMERIC
+  category : TEXT
+  date : DATE
+  note : TEXT
+  nature : TEXT
+}
+
+entity user_goals {
+  *id : SERIAL <<PK>>
+  --
+  user_id : INTEGER <<FK>>
+  name : VARCHAR
+  target_amount : NUMERIC
+  duration_months : INTEGER
+  priority : VARCHAR
+  saved_amount : NUMERIC
+  status : VARCHAR
+}
+
+entity user_holdings {
+  *id : SERIAL <<PK>>
+  --
+  user_id : INTEGER <<FK>>
+  symbol : VARCHAR(20)
+  quantity : NUMERIC
+  purchase_price : NUMERIC
+  added_at : TIMESTAMP
+}
+
+entity questionnaire_responses {
+  *id : SERIAL <<PK>>
+  --
+  user_id : INTEGER <<FK>>
+  age_group : INTEGER
+  occupation : VARCHAR
+  income_range : INTEGER
+  savings_percent : INTEGER
+  investment_experience : INTEGER
+  instruments_used_count : INTEGER
+  financial_comfort : INTEGER
+  loss_reaction : INTEGER
+  return_priority : INTEGER
+  volatility_comfort : INTEGER
+  risk_label : INTEGER
+  submitted_at : TIMESTAMP
+}
+
+entity user_sessions {
+  *sid : VARCHAR <<PK>>
+  --
+  sess : JSON
+  expire : TIMESTAMP
+}
+
+' ============================================================
+'  SQLite — Portfolio Analysis DB (FastAPI :8005)
+' ============================================================
+
+entity pa_users {
+  *id : INTEGER <<PK>>
+  --
+  username : VARCHAR(50) <<UNIQUE>>
+  email : VARCHAR(100)
+  pg_user_id : INTEGER
+  created_at : DATETIME
+}
+
+entity pa_goals {
+  *id : INTEGER <<PK>>
+  --
+  user_id : INTEGER <<FK>>
+  name : VARCHAR(100)
+  description : VARCHAR(500)
+  target_amount : FLOAT
+  profit_buffer : FLOAT
+  target_value : FLOAT
+  initial_investment : FLOAT
+  deadline : DATE
+  risk_preference : VARCHAR(20)
+  status : VARCHAR(20)
+  created_at : DATETIME
+  updated_at : DATETIME
+}
+
+entity pa_transactions {
+  *id : INTEGER <<PK>>
+  --
+  goal_id : INTEGER <<FK>>
+  stock_symbol : VARCHAR(20)
+  stock_name : VARCHAR(100)
+  transaction_type : VARCHAR(10)
+  quantity : INTEGER
+  price : FLOAT
+  total_value : FLOAT
+  transaction_date : DATE
+  validated : BOOLEAN
+  validation_message : VARCHAR(200)
+  notes : VARCHAR(500)
+  created_at : DATETIME
+}
+
+entity pa_holdings {
+  *id : INTEGER <<PK>>
+  --
+  goal_id : INTEGER <<FK>>
+  stock_symbol : VARCHAR(20)
+  stock_name : VARCHAR(100)
+  quantity : INTEGER
+  avg_buy_price : FLOAT
+  total_invested : FLOAT
+  last_updated : DATETIME
+}
+
+entity pa_stock_prices {
+  *id : INTEGER <<PK>>
+  --
+  symbol : VARCHAR(20)
+  date : DATE
+  open : FLOAT
+  high : FLOAT
+  low : FLOAT
+  close : FLOAT
+  adj_close : FLOAT
+  volume : BIGINT
+  fetched_at : DATETIME
+}
+
+entity pa_alerts {
+  *id : INTEGER <<PK>>
+  --
+  goal_id : INTEGER <<FK>>
+  alert_type : VARCHAR(50)
+  title : VARCHAR(200)
+  message : VARCHAR(1000)
+  severity : VARCHAR(20)
+  is_read : BOOLEAN
+  created_at : DATETIME
+}
+
+' ============================================================
+'  Relationships — PostgreSQL
+' ============================================================
+
+newusers ||--o{ expenses
+newusers ||--o{ user_goals
+newusers ||--o{ user_holdings
+newusers ||--o{ questionnaire_responses
+
+' ============================================================
+'  Relationships — SQLite Portfolio Analysis
+' ============================================================
+
+pa_users ||--o{ pa_goals
+pa_goals ||--o{ pa_transactions
+pa_goals ||--o{ pa_holdings
+pa_goals ||--o{ pa_alerts
+
+@enduml

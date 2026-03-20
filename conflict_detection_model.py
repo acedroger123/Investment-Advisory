@@ -48,6 +48,7 @@ class GoalConflictInput:
     target_amount: float
     current_amount: float
     timeline_months: int
+    goal_id: int | None = None
     priority: int = 3
     protected_categories: list[str] | None = None
     goal_type: str = "General"
@@ -99,6 +100,7 @@ class ExpenseGoalConflictModel:
 
             goal_conflicts.append(
                 {
+                    "goal_id": goal.goal_id,
                     "goal_name": goal.goal_name,
                     "goal_type": goal.goal_type,
                     "severity": severity,
@@ -113,6 +115,7 @@ class ExpenseGoalConflictModel:
         goal_conflicts.sort(key=lambda x: x["conflict_score"], reverse=True)
         alerts = [
             {
+                "goal_id": item["goal_id"],
                 "goal_name": item["goal_name"],
                 "severity": item["severity"],
                 "message": item["explanation"],
@@ -142,11 +145,17 @@ class ExpenseGoalConflictModel:
 
     def _normalize_goal(self, goal: dict[str, Any]) -> GoalConflictInput:
         goal_name = str(goal.get("goal_name", "Unnamed Goal")).strip() or "Unnamed Goal"
+        goal_id_raw = goal.get("goal_id")
+        try:
+            goal_id = int(goal_id_raw) if goal_id_raw is not None else None
+        except (ValueError, TypeError):
+            goal_id = None
         return GoalConflictInput(
             goal_name=goal_name,
             target_amount=max(float(goal.get("target_amount", 0.0)), 0.0),
             current_amount=max(float(goal.get("current_amount", 0.0)), 0.0),
             timeline_months=max(int(goal.get("timeline_months", 1)), 1),
+            goal_id=goal_id,
             priority=max(1, min(int(goal.get("priority", 3)), 5)),
             protected_categories=[str(c).strip().lower() for c in goal.get("protected_categories", [])],
             goal_type=str(goal.get("goal_type", "General")).strip() or "General",

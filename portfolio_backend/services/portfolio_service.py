@@ -325,13 +325,15 @@ class PortfolioService:
         if not all_symbols:
             return []
         
-        # OPTIMIZATION: Fetch historical data for ALL symbols in one batch call per symbol
-        # (each call covers the full date range instead of per-day)
+        # OPTIMIZATION: Batch fetch historical data for ALL symbols in single request
+        all_hist = MarketDataService.get_multiple_historical_data(
+            list(all_symbols), start_date, end_date
+        )
+        
+        # Build date->close price lookup dicts for fast access
         symbol_history = {}
-        for symbol in all_symbols:
-            hist = MarketDataService.get_historical_data(symbol, start_date, end_date)
-            if not hist.empty:
-                # Build a date->close price lookup dict for fast access
+        for symbol, hist in all_hist.items():
+            if hist is not None and not hist.empty:
                 price_lookup = {}
                 for _, row in hist.iterrows():
                     price_lookup[row['Date']] = float(row['Close'])

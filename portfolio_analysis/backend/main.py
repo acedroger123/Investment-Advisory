@@ -22,12 +22,12 @@ from services.scheduler import price_scheduler
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     # Startup
-    print("🚀 Starting Goal-Based Stock Portfolio Advisory System...")
+    print("Starting Goal-Based Stock Portfolio Advisory System...")
     init_db()
     price_scheduler.start()
     yield
     # Shutdown
-    print("👋 Shutting down...")
+    print("Shutting down...")
     price_scheduler.stop()
 
 
@@ -46,7 +46,7 @@ app = FastAPI(
     - Monte Carlo Simulation for goal feasibility
     - Stress Testing under adverse market conditions
     
-    ⚠️ **Disclaimer**: This is an educational system for decision support only.
+    **Disclaimer**: This is an educational system for decision support only.
     It does not provide financial advice or execute trades.
     """,
     version="1.0.0",

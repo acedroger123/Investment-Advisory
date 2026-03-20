@@ -16,7 +16,7 @@
   <nav class="navbar">
     <div class="sidebar-header">
       <div class="nav-brand">
-        <span class="brand-icon">📈</span>
+        <span class="brand-icon"><i data-lucide="trending-up" size="20"></i></span>
         <span class="brand-text">AI Wealth</span>
       </div>
       <button class="sidebar-toggle" type="button" data-sidebar-toggle aria-label="Collapse sidebar" aria-expanded="true">
@@ -58,13 +58,13 @@
       <select id="goalSelect" class="goal-select" onchange="loadGoalData()">
         <option value="">Select a goal...</option>
       </select>
-      <button class="btn btn-icon" onclick="refreshData()" title="Refresh">🔄</button>
+      <button class="btn btn-icon" onclick="refreshData()" title="Refresh">Refresh</button>
     </div>
 
     <!-- Stats Cards -->
     <section class="stats-grid">
       <div class="stat-card gradient-blue">
-        <div class="stat-icon">💰</div>
+        <div class="stat-icon"></div>
         <div class="stat-content">
           <span class="stat-label">Portfolio Value</span>
           <span class="stat-value" id="portfolioValue">₹0</span>
@@ -72,7 +72,7 @@
         </div>
       </div>
       <div class="stat-card gradient-green">
-        <div class="stat-icon">🎯</div>
+        <div class="stat-icon"></div>
         <div class="stat-content">
           <span class="stat-label">Goal Progress</span>
           <span class="stat-value" id="goalProgress">0%</span>
@@ -81,7 +81,7 @@
         </div>
       </div>
       <div class="stat-card gradient-purple">
-        <div class="stat-icon">📊</div>
+        <div class="stat-icon"></div>
         <div class="stat-content">
           <span class="stat-label">Total P&L</span>
           <span class="stat-value" id="totalPnl">₹0</span>
@@ -89,7 +89,7 @@
         </div>
       </div>
       <div class="stat-card gradient-orange">
-        <div class="stat-icon">⏳</div>
+        <div class="stat-icon"></div>
         <div class="stat-content">
           <span class="stat-label">Days Remaining</span>
           <span class="stat-value" id="daysRemaining">0</span>
@@ -200,7 +200,7 @@
         </div>
         <div class="recommendations-list" id="recommendationsList">
           <div class="recommendation-item">
-            <span class="rec-icon">💡</span>
+            <span class="rec-icon"></span>
             <span class="rec-text">Create a goal and add stocks to get personalized recommendations.</span>
           </div>
         </div>
@@ -224,7 +224,7 @@
     <!-- Alerts Section -->
     <section class="alerts-section" id="alertsSection" style="display: none;">
       <div class="alerts-header">
-        <h3>⚠️ Alerts & Notifications</h3>
+        <h3>Alerts & Notifications</h3>
       </div>
       <div class="alerts-list" id="alertsList"></div>
     </section>
@@ -281,14 +281,16 @@
 
   <!-- Footer -->
   <footer class="footer">
-    <p>⚠️ <strong>Disclaimer:</strong> This is an educational system. It does not provide financial advice or
+    <p><strong>Disclaimer:</strong> This is an educational system. It does not provide financial advice or
       guarantee returns.</p>
   </footer>
 
+  <script src="https://unpkg.com/lucide@latest"></script>
   <script src="js/layout.js"></script>
   <script src="js/api.js"></script>
   <script src="js/charts.js"></script>
   <script src="js/dashboard.js"></script>
+  <script>if (window.lucide) lucide.createIcons();</script>
 </body>
 
 </html>

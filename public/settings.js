@@ -55,7 +55,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // --- 2. INITIALIZATION ---
 
-  // 🔒 FORCE LOCK ON PAGE LOAD (User Requirement)
+  // FORCE LOCK ON PAGE LOAD (User Requirement)
   try {
     await fetch("/settings/lock", { method: "POST", credentials: "include" });
   } catch (e) {

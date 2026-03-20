@@ -43,7 +43,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!reviewSubtitle) return;
     const d = toValidDate(referenceDate);
     if (!d) return;
-    reviewSubtitle.textContent = `📅 ${d.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}`;
+    reviewSubtitle.textContent = `${d.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}`;
   }
 
   function pickLatestMonthExpenses(expenses) {
@@ -415,8 +415,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     highlights.forEach(h => {
       const div = document.createElement("div");
       div.className = `highlight-item ${h.type === 'pos' ? 'highlight-positive' : h.type === 'neg' ? 'highlight-negative' : ''}`;
-      const icon = h.type === 'pos' ? '📈' : h.type === 'neg' ? '⚠️' : 'ℹ️';
-      div.innerHTML = `<span>${icon}</span> <span>${h.text}</span>`;
+      div.innerHTML = `<span>${h.text}</span>`;
       container.appendChild(div);
     });
   }

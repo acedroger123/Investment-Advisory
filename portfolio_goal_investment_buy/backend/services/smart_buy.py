@@ -387,28 +387,28 @@ def _build_reason(
     parts: List[str] = []
 
     # Dip context
-    parts.append(f"📉 Price dipped {abs(dip_pct):.1f}% over the last 5 trading days")
+    parts.append(f"Price dipped {abs(dip_pct):.1f}% over the last 5 trading days")
 
     # Growth fit
     if required_growth > 0:
         if sector_return >= required_growth:
             parts.append(
-                f"✅ {sector} sector (~{sector_return:.0f}%/yr expected) meets your "
+                f"{sector} sector (~{sector_return:.0f}%/yr expected) meets your "
                 f"required growth of {required_growth:.1f}%/yr"
             )
         else:
             parts.append(
-                f"⚠️ {sector} sector (~{sector_return:.0f}%/yr) is below required "
+                f"{sector} sector (~{sector_return:.0f}%/yr) is below required "
                 f"{required_growth:.1f}%/yr — consider risk upgrade"
             )
     else:
-        parts.append(f"🏁 Goal is on track; this dip is an opportunistic add")
+        parts.append(f"Goal is on track; this dip is an opportunistic add")
 
     # Diversification note
     if already_held:
-        parts.append("📊 Already in portfolio — adding more increases concentration")
+        parts.append("Already in portfolio — adding more increases concentration")
 
     # Risk note
-    parts.append(f"🔒 Risk profile: {risk_pref.capitalize()}")
+    parts.append(f"Risk profile: {risk_pref.capitalize()}")
 
     return " · ".join(parts)

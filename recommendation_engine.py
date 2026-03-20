@@ -150,7 +150,7 @@ def recommend_ranked_behaviors(
     habit_detection: dict,
     profile: dict,
     upstream_outputs: dict | None = None,
-    top_k: int = 5,
+    top_k: int = 8,
 ):
     upstream_outputs = upstream_outputs or {}
     if profile.get("expense_nature") == "Fixed":

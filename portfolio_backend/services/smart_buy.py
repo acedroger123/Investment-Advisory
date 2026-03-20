@@ -21,10 +21,16 @@ Algorithm overview
 from datetime import date, timedelta
 from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
+import yfinance as yf
+import pandas as pd
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import logging
 
 from portfolio_backend.database.models import Goal
 from portfolio_backend.services.market_data import MarketDataService
 from portfolio_backend.services.portfolio_service import PortfolioService
+
+logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────
 # Constants
@@ -182,10 +188,94 @@ _LARGE_CAP_SYMBOLS = {
 # Public API
 # ─────────────────────────────────────────────
 
+def _fetch_batch_history(symbols: List[str], start_date: date, end_date: date) -> Dict[str, pd.DataFrame]:
+    """
+    Fetch historical data for multiple symbols in a single batch request.
+    Returns a dict mapping symbol -> DataFrame with Close prices.
+    """
+    if not symbols:
+        return {}
+    
+    try:
+        # Use yfinance batch download - MUCH faster than individual calls
+        data = yf.download(
+            symbols, 
+            start=start_date.strftime("%Y-%m-%d"),
+            end=(end_date + timedelta(days=1)).strftime("%Y-%m-%d"),
+            progress=False,
+            threads=True,
+            group_by='ticker'
+        )
+        
+        result = {}
+        if data.empty:
+            return result
+        
+        # Handle different yfinance response formats
+        if len(symbols) == 1:
+            # Single symbol - flat columns
+            symbol = symbols[0]
+            if 'Close' in data.columns:
+                df = data[['Close']].dropna()
+                if not df.empty:
+                    result[symbol] = df
+        else:
+            # Multiple symbols - grouped by ticker
+            for symbol in symbols:
+                try:
+                    if symbol in data.columns.get_level_values(0):
+                        df = data[symbol][['Close']].dropna()
+                        if not df.empty:
+                            result[symbol] = df
+                except (KeyError, AttributeError):
+                    pass
+        
+        return result
+    except Exception as e:
+        logger.warning(f"Batch history fetch failed: {e}")
+        return {}
+
+
+def _fetch_stock_info_parallel(symbols: List[str]) -> Dict[str, Dict]:
+    """
+    Fetch stock info for multiple symbols in parallel using ThreadPoolExecutor.
+    Returns a dict mapping symbol -> info dict.
+    """
+    result = {}
+    
+    def fetch_single(symbol: str) -> tuple:
+        try:
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+            if info and info.get('regularMarketPrice') is not None:
+                return symbol, {
+                    "sector": info.get("sector", "Unknown"),
+                    "name": info.get("longName") or info.get("shortName", symbol),
+                }
+        except Exception:
+            pass
+        return symbol, {"sector": "Unknown", "name": symbol}
+    
+    # Use ThreadPoolExecutor for parallel fetching
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(fetch_single, sym): sym for sym in symbols}
+        for future in as_completed(futures):
+            try:
+                symbol, info = future.result(timeout=5)
+                result[symbol] = info
+            except Exception:
+                symbol = futures[future]
+                result[symbol] = {"sector": "Unknown", "name": symbol}
+    
+    return result
+
+
 def get_smart_buy_recommendations(db: Session, goal_id: int) -> List[Dict]:
     """
     Return a list of smart buy recommendation dicts for the given goal.
     Returns an empty list if no qualifying stocks are found.
+    
+    OPTIMIZED: Uses batch fetching for historical data and parallel info fetching.
     """
     goal = db.query(Goal).filter(Goal.id == goal_id).first()
     if not goal:
@@ -204,27 +294,32 @@ def get_smart_buy_recommendations(db: Session, goal_id: int) -> List[Dict]:
 
     # Select risk-appropriate portion of the watchlist
     universe = _get_risk_universe(risk_pref)
-
-    # Scan sector-balanced watchlist
-    candidates = []
+    
+    # Filter out already-held symbols early
+    symbols_to_check = [s["symbol"] for s in universe if s["symbol"] not in existing_weights]
+    
+    if not symbols_to_check:
+        return []
 
     end_date = date.today()
-    start_date = end_date - timedelta(days=DIP_LOOKBACK_DAYS + 2)  # extra buffer for holidays
+    start_date = end_date - timedelta(days=DIP_LOOKBACK_DAYS + 2)
 
-    for stock in universe:
-        symbol = stock["symbol"]
-
-        # Fetch short-term history (7-day window)
-        hist = MarketDataService.get_historical_data(symbol, start_date, end_date)
-        if hist is None or hist.empty or len(hist) < 2:
+    # BATCH FETCH: Get all historical data in one request
+    history_data = _fetch_batch_history(symbols_to_check, start_date, end_date)
+    
+    # First pass: identify stocks with meaningful dips
+    dip_candidates = []
+    for symbol in symbols_to_check:
+        if symbol not in history_data:
             continue
-
+        
+        hist = history_data[symbol]
         closes = hist["Close"].dropna()
         if len(closes) < 2:
             continue
 
         current_price = float(closes.iloc[-1])
-        older_price   = float(closes.iloc[0])   # earliest available in window
+        older_price = float(closes.iloc[0])
 
         if older_price == 0:
             continue
@@ -232,17 +327,31 @@ def get_smart_buy_recommendations(db: Session, goal_id: int) -> List[Dict]:
         dip_pct = ((current_price - older_price) / older_price) * 100.0
 
         # Only consider meaningful dips
-        if dip_pct > DIP_THRESHOLD:
-            continue
+        if dip_pct <= DIP_THRESHOLD:
+            dip_candidates.append({
+                "symbol": symbol,
+                "current_price": current_price,
+                "older_price": older_price,
+                "dip_pct": dip_pct,
+            })
+    
+    if not dip_candidates:
+        return []
+    
+    # PARALLEL FETCH: Get stock info only for dip candidates (not all 66 stocks)
+    dip_symbols = [c["symbol"] for c in dip_candidates]
+    stock_info = _fetch_stock_info_parallel(dip_symbols)
+    
+    # Build final candidates with scores
+    candidates = []
+    for c in dip_candidates:
+        symbol = c["symbol"]
+        info = stock_info.get(symbol, {"sector": "Unknown", "name": symbol})
+        sector = info.get("sector", "Unknown")
+        name = info.get("name", symbol)
 
-        # Fetch stock info for sector
-        info = MarketDataService.get_stock_info(symbol)
-        sector = (info.get("sector") or "Unknown") if info else "Unknown"
-        name   = (info.get("name")   or symbol)    if info else symbol
-
-        # Score the candidate
         score = _compute_score(
-            dip_pct=dip_pct,
+            dip_pct=c["dip_pct"],
             sector=sector,
             required_growth=required_growth,
             symbol=symbol,
@@ -250,24 +359,19 @@ def get_smart_buy_recommendations(db: Session, goal_id: int) -> List[Dict]:
             max_weight=max_weight,
         )
 
-        already_held = symbol in existing_weights
-        if already_held:
-            # Do not recommend symbols the user already holds.
-            continue
-
         candidates.append({
-            "symbol":        symbol,
-            "name":          name,
-            "sector":        sector,
-            "current_price": round(current_price, 2),
-            "price_5d_ago":  round(older_price, 2),
-            "dip_pct":       round(dip_pct, 2),
+            "symbol": symbol,
+            "name": name,
+            "sector": sector,
+            "current_price": round(c["current_price"], 2),
+            "price_5d_ago": round(c["older_price"], 2),
+            "dip_pct": round(c["dip_pct"], 2),
             "goal_fit_score": score,
             "goal_fit_label": _fit_label(score),
-            "conviction":    _conviction(score),
-            "already_held":  False,
-            "reason":        _build_reason(
-                dip_pct, sector, required_growth, score, risk_pref, False
+            "conviction": _conviction(score),
+            "already_held": False,
+            "reason": _build_reason(
+                c["dip_pct"], sector, required_growth, score, risk_pref, False
             ),
         })
 
@@ -391,28 +495,28 @@ def _build_reason(
     parts: List[str] = []
 
     # Dip context
-    parts.append(f"📉 Price dipped {abs(dip_pct):.1f}% over the last 5 trading days")
+    parts.append(f"Price dipped {abs(dip_pct):.1f}% over the last 5 trading days")
 
     # Growth fit
     if required_growth > 0:
         if sector_return >= required_growth:
             parts.append(
-                f"✅ {sector} sector (~{sector_return:.0f}%/yr expected) meets your "
+                f"{sector} sector (~{sector_return:.0f}%/yr expected) meets your "
                 f"required growth of {required_growth:.1f}%/yr"
             )
         else:
             parts.append(
-                f"⚠️ {sector} sector (~{sector_return:.0f}%/yr) is below required "
+                f"{sector} sector (~{sector_return:.0f}%/yr) is below required "
                 f"{required_growth:.1f}%/yr — consider risk upgrade"
             )
     else:
-        parts.append(f"🏁 Goal is on track; this dip is an opportunistic add")
+        parts.append(f"Goal is on track; this dip is an opportunistic add")
 
     # Diversification note
     if already_held:
-        parts.append("📊 Already in portfolio — adding more increases concentration")
+        parts.append("Already in portfolio — adding more increases concentration")
 
     # Risk note
-    parts.append(f"🔒 Risk profile: {risk_pref.capitalize()}")
+    parts.append(f"Risk profile: {risk_pref.capitalize()}")
 
     return " · ".join(parts)

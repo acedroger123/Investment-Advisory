@@ -164,8 +164,17 @@ class RebalancingService:
         portfolio: Dict,
         issues: List[Dict]
     ) -> List[Dict]:
-        """Generate actionable recommendations based on identified issues."""
+        """Generate actionable recommendations based on identified issues.
+        OPTIMIZED: Uses batch price fetching for concentration issues."""
         recommendations = []
+        
+        # Collect all symbols that need price fetching (for CONCENTRATION issues)
+        concentration_issues = [i for i in issues if i['type'] == "CONCENTRATION"]
+        if concentration_issues:
+            symbols_to_fetch = [i['asset'] for i in concentration_issues]
+            prices = MarketDataService.get_multiple_current_prices(symbols_to_fetch)
+        else:
+            prices = {}
         
         for issue in issues:
             if issue['type'] == "CONCENTRATION":
@@ -179,27 +188,21 @@ class RebalancingService:
                 target_weight = strategy["max_single_weight"] * 100
                 excess_weight = current_weight - target_weight
 
-                holding = db.query(Holding).filter(
-                    Holding.goal_id == goal_id,
-                    Holding.stock_symbol == symbol
-                ).first()
+                current_price = prices.get(symbol)
+                if current_price:
+                    portfolio_value = portfolio.get('total_current_value', 0)
+                    excess_value = (excess_weight / 100) * portfolio_value
+                    shares_to_sell = int(excess_value / current_price)
 
-                if holding:
-                    current_price = MarketDataService.get_current_price(symbol)
-                    if current_price:
-                        portfolio_value = portfolio.get('total_current_value', 0)
-                        excess_value = (excess_weight / 100) * portfolio_value
-                        shares_to_sell = int(excess_value / current_price)
-
-                        if shares_to_sell > 0:
-                            recommendations.append({
-                                "action": "SELL",
-                                "symbol": symbol,
-                                "quantity": shares_to_sell,
-                                "reason": f"Reduce concentration from {current_weight:.1f}% to ~{target_weight:.0f}% ({goal.risk_preference} risk cap)",
-                                "priority": "HIGH",
-                                "estimated_value": round(shares_to_sell * current_price, 2)
-                            })
+                    if shares_to_sell > 0:
+                        recommendations.append({
+                            "action": "SELL",
+                            "symbol": symbol,
+                            "quantity": shares_to_sell,
+                            "reason": f"Reduce concentration from {current_weight:.1f}% to ~{target_weight:.0f}% ({goal.risk_preference} risk cap)",
+                            "priority": "HIGH",
+                            "estimated_value": round(shares_to_sell * current_price, 2)
+                        })
             
             elif issue['type'] == "DIVERSIFICATION":
                 recommendations.append({
@@ -256,6 +259,8 @@ class RebalancingService:
           - low:      Conservative capped equal-weight (20% max per stock)
           - moderate: Balanced equal-weight (30% max per stock)
           - high:     Growth-tilt (50% max, fewer stocks OK)
+        
+        OPTIMIZED: Uses batch price fetching instead of per-stock API calls.
         """
         analysis = RebalancingService.analyze_portfolio(db, goal_id)
         allocation = PortfolioService.get_asset_allocation(db, goal_id)
@@ -277,62 +282,84 @@ class RebalancingService:
         total_value = sum(a['value'] for a in allocation)
 
         # Build target weights per stock (equal-weight, but capped at max_single)
-        # Step 1: assign equal weight, then redistribute any excess above the cap
         raw_equal = 100.0 / num_holdings if num_holdings > 0 else 0
         target_weights: dict[str, float] = {}
 
         if raw_equal > max_single:
-            # All stocks would be over the cap — cap them all (unusual edge case)
             for asset in allocation:
                 target_weights[asset['symbol']] = max_single
         else:
             for asset in allocation:
                 target_weights[asset['symbol']] = raw_equal
 
-        suggestions = []
-
+        # Identify assets that need rebalancing
+        assets_needing_rebalance = []
         for asset in allocation:
             current_weight = asset['weight']
             target_weight = target_weights[asset['symbol']]
             drift = current_weight - target_weight
-
             if abs(drift) > drift_threshold:
-                holding = db.query(Holding).filter(
-                    Holding.goal_id == goal_id,
-                    Holding.stock_symbol == asset['symbol']
-                ).first()
+                assets_needing_rebalance.append({
+                    'asset': asset,
+                    'drift': drift,
+                    'target_weight': target_weight
+                })
 
-                if holding:
-                    current_price = MarketDataService.get_current_price(asset['symbol'])
-                    if current_price:
-                        if drift > 0:
-                            # Overweight — suggest selling
-                            excess_value = (drift / 100) * total_value
-                            shares = int(excess_value / current_price)
-                            if shares > 0:
-                                suggestions.append({
-                                    "action": "SELL",
-                                    "symbol": asset['symbol'],
-                                    "quantity": shares,
-                                    "current_weight": round(current_weight, 2),
-                                    "target_weight": round(target_weight, 2),
-                                    "drift": round(drift, 2),
-                                    "reason": f"Overweight vs {risk_key} target ({target_weight:.1f}%)"
-                                })
-                        else:
-                            # Underweight — suggest buying
-                            deficit_value = abs(drift / 100) * total_value
-                            shares = int(deficit_value / current_price)
-                            if shares > 0:
-                                suggestions.append({
-                                    "action": "BUY",
-                                    "symbol": asset['symbol'],
-                                    "quantity": shares,
-                                    "current_weight": round(current_weight, 2),
-                                    "target_weight": round(target_weight, 2),
-                                    "drift": round(drift, 2),
-                                    "reason": f"Underweight vs {risk_key} target ({target_weight:.1f}%)"
-                                })
+        if not assets_needing_rebalance:
+            return {
+                "status": "BALANCED",
+                "target_strategy": strategy["strategy_label"],
+                "strategy_description": strategy["description"],
+                "risk_preference": risk_key,
+                "max_single_stock_weight": max_single,
+                "suggestions": [],
+                "analysis": analysis
+            }
+
+        # BATCH FETCH: Get all prices at once instead of per-stock calls
+        symbols_to_fetch = [item['asset']['symbol'] for item in assets_needing_rebalance]
+        prices = MarketDataService.get_multiple_current_prices(symbols_to_fetch)
+
+        suggestions = []
+        for item in assets_needing_rebalance:
+            asset = item['asset']
+            drift = item['drift']
+            target_weight = item['target_weight']
+            current_weight = asset['weight']
+            symbol = asset['symbol']
+            
+            current_price = prices.get(symbol)
+            if not current_price:
+                continue
+
+            if drift > 0:
+                # Overweight — suggest selling
+                excess_value = (drift / 100) * total_value
+                shares = int(excess_value / current_price)
+                if shares > 0:
+                    suggestions.append({
+                        "action": "SELL",
+                        "symbol": symbol,
+                        "quantity": shares,
+                        "current_weight": round(current_weight, 2),
+                        "target_weight": round(target_weight, 2),
+                        "drift": round(drift, 2),
+                        "reason": f"Overweight vs {risk_key} target ({target_weight:.1f}%)"
+                    })
+            else:
+                # Underweight — suggest buying
+                deficit_value = abs(drift / 100) * total_value
+                shares = int(deficit_value / current_price)
+                if shares > 0:
+                    suggestions.append({
+                        "action": "BUY",
+                        "symbol": symbol,
+                        "quantity": shares,
+                        "current_weight": round(current_weight, 2),
+                        "target_weight": round(target_weight, 2),
+                        "drift": round(drift, 2),
+                        "reason": f"Underweight vs {risk_key} target ({target_weight:.1f}%)"
+                    })
 
         return {
             "status": "REBALANCE_SUGGESTED" if suggestions else "BALANCED",
@@ -348,10 +375,10 @@ class RebalancingService:
     def get_buy_recommendations(db: Session, goal_id: int) -> List[Dict]:
         """
         Get smart buy recommendations based on portfolio needs.
+        OPTIMIZED: Uses batch price fetching.
         """
-        portfolio = PortfolioService.calculate_portfolio_value(db, goal_id)
-        allocation = PortfolioService.get_asset_allocation(db, goal_id)
-        goal = db.query(Goal).filter(Goal.id == goal_id).first()
+        holdings = PortfolioService.get_holdings(db, goal_id)
+        allocation = PortfolioService.get_asset_allocation(db, goal_id, holdings)
         
         recommendations = []
         
@@ -362,18 +389,23 @@ class RebalancingService:
         if len(allocation) < 5:
             # Suggest some popular stocks not in portfolio
             all_stocks = MarketDataService.search_stocks("", limit=20)
-            for stock in all_stocks:
-                if stock['symbol'] not in existing_symbols:
-                    info = MarketDataService.get_stock_info(stock['symbol'])
-                    if info:
+            candidates = [s for s in all_stocks if s['symbol'] not in existing_symbols][:5]
+            
+            if candidates:
+                # Batch fetch prices for all candidates
+                symbols = [s['symbol'] for s in candidates]
+                prices = MarketDataService.get_multiple_current_prices(symbols)
+                
+                for stock in candidates:
+                    symbol = stock['symbol']
+                    price = prices.get(symbol)
+                    if price:
                         recommendations.append({
-                            "symbol": stock['symbol'],
+                            "symbol": symbol,
                             "name": stock['name'],
-                            "current_price": info.get('current_price', 0),
+                            "current_price": round(price, 2),
                             "reason": "Diversification opportunity",
-                            "sector": info.get('sector', 'Unknown')
+                            "sector": "Unknown"  # Skip expensive info call
                         })
-                        if len(recommendations) >= 5:
-                            break
         
         return recommendations

@@ -36,12 +36,12 @@ class RecommendationRankingPersonalizationModel:
     ) -> list[dict[str, Any]]:
         normalized = [self._normalize_candidate(c) for c in candidates]
         weights = self._context_weights(ranking_input)
-        top_goal = self._top_goal(ranking_input.upstream_outputs)
+        all_goals = self._all_goals(ranking_input.upstream_outputs)
         goal_feasibility = min(max(ranking_input.goal_feasibility, 0.0), 1.0)
         base_success_probability = max(20.0, min(95.0, round(goal_feasibility * 100.0, 1)))
 
         scored: list[dict[str, Any]] = []
-        for candidate in normalized:
+        for idx, candidate in enumerate(normalized):
             profile_fit = self._profile_fit(candidate, ranking_input.user_profile)
             urgency = self._urgency_signal(candidate, ranking_input)
             risk_fit = self._risk_fit(candidate, ranking_input)
@@ -74,6 +74,9 @@ class RecommendationRankingPersonalizationModel:
             feasibility_impact_pct = round(-1.0 * min(20.0, 6.0 + 18.0 * final_score * goal_pressure), 1)
             goal_timeline_reduction = round(max(0.6, (success_probability_after - base_success_probability) / 5.0), 1)
 
+            # Distribute recommendations across multiple goals (round-robin)
+            assigned_goal = all_goals[idx % len(all_goals)] if all_goals else {"goal_name": "Core Goal"}
+
             scored.append(
                 {
                     "recommendation": candidate["recommendation"],
@@ -92,11 +95,11 @@ class RecommendationRankingPersonalizationModel:
                         dominant_factor=dominant_factor,
                         candidate=candidate,
                         ranking_input=ranking_input,
-                        top_goal=top_goal,
+                        top_goal=assigned_goal,
                         timeline_reduction=goal_timeline_reduction,
                         behavior_signals=behavior_signals,
                     ),
-                    "impacts_goal": top_goal.get("goal_name", "Core Goal"),
+                    "impacts_goal": assigned_goal.get("goal_name", "Core Goal"),
                     "feasibility_impact_pct": feasibility_impact_pct,
                     "goal_success_probability_before": base_success_probability,
                     "goal_success_probability_after": success_probability_after,
@@ -256,6 +259,69 @@ class RecommendationRankingPersonalizationModel:
         if not isinstance(conflicts, list) or not conflicts:
             return {"goal_name": "Emergency Fund"}
         return max(conflicts, key=lambda x: float(x.get("conflict_score", 0.0)))
+
+    def _all_goals(self, upstream_outputs: dict[str, Any]) -> list[dict[str, Any]]:
+        """Get all goals for distributing recommendations across different impact areas.
+        
+        Uses goal_conflicts first (sorted by conflict score), then active_goals if needed.
+        If only one goal exists, we create varied impact labels to avoid repetition.
+        """
+        conflicts = self._dig(upstream_outputs, ["goal_conflict", "goal_conflicts"], [])
+        active_goals = self._dig(upstream_outputs, ["active_goals"], [])
+        
+        # Combine goals from conflicts and active_goals
+        all_goal_names: set[str] = set()
+        combined_goals: list[dict[str, Any]] = []
+        
+        # Add from conflicts first (they have conflict scores)
+        if isinstance(conflicts, list):
+            for gc in sorted(conflicts, key=lambda x: float(x.get("conflict_score", 0.0)), reverse=True):
+                name = gc.get("goal_name", "")
+                if name and name not in all_goal_names:
+                    combined_goals.append(gc)
+                    all_goal_names.add(name)
+        
+        # Add any additional goals from active_goals
+        if isinstance(active_goals, list):
+            for ag in active_goals:
+                name = ag.get("goal_name", "")
+                if name and name not in all_goal_names:
+                    combined_goals.append({"goal_name": name})
+                    all_goal_names.add(name)
+        
+        # Generic impact areas to supplement when we have few goals
+        generic_impacts = [
+            {"goal_name": "Savings Discipline"},
+            {"goal_name": "Cash Flow Stability"},
+            {"goal_name": "Budget Efficiency"},
+            {"goal_name": "Financial Health"},
+            {"goal_name": "Spending Control"},
+        ]
+        
+        if not combined_goals:
+            return generic_impacts[:5]
+        
+        # If only one real goal exists, alternate between the goal and generic impacts
+        if len(combined_goals) == 1:
+            primary_goal = combined_goals[0]
+            return [
+                primary_goal,
+                generic_impacts[0],
+                generic_impacts[1],
+                primary_goal,  # Repeat for top recommendations
+                generic_impacts[2],
+            ]
+        
+        # If 2-4 goals, extend with generic impacts
+        if len(combined_goals) < 5:
+            result = combined_goals.copy()
+            idx = 0
+            while len(result) < 5:
+                result.append(generic_impacts[idx % len(generic_impacts)])
+                idx += 1
+            return result
+        
+        return combined_goals[:10]  # Return up to 10 goals
 
     def _success_delta(self, score: float, candidate: dict[str, Any]) -> float:
         difficulty = TEMPLATE_DIFFICULTY.get(candidate.get("template_key", ""), "Moderate")

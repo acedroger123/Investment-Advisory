@@ -224,6 +224,86 @@ class MarketDataService:
         return MarketDataService.get_multiple_current_prices(symbols)
     
     @staticmethod
+    def get_multiple_historical_data(
+        symbols: List[str],
+        start_date: date,
+        end_date: date = None
+    ) -> Dict[str, pd.DataFrame]:
+        """
+        Fetch historical OHLC data for multiple stocks in a single batch request.
+        Returns a dict mapping symbol -> DataFrame with Date, Close columns.
+        OPTIMIZED: Uses yf.download() for batch fetching.
+        """
+        if not symbols:
+            return {}
+        
+        if end_date is None:
+            end_date = date.today()
+        
+        result = {}
+        uncached_symbols = []
+        
+        # Check cache first for all symbols
+        for symbol in symbols:
+            cached = _get_cached_history(symbol, start_date, end_date)
+            if cached is not None:
+                result[symbol] = cached
+            else:
+                uncached_symbols.append(symbol)
+        
+        if not uncached_symbols:
+            return result
+        
+        # Batch fetch uncached symbols
+        try:
+            data = yf.download(
+                uncached_symbols,
+                start=start_date.strftime("%Y-%m-%d"),
+                end=(end_date + timedelta(days=1)).strftime("%Y-%m-%d"),
+                progress=False,
+                threads=True,
+                group_by='ticker'
+            )
+            
+            if data.empty:
+                return result
+            
+            # Process results based on yfinance response format
+            if len(uncached_symbols) == 1:
+                # Single symbol - flat columns
+                symbol = uncached_symbols[0]
+                if 'Close' in data.columns:
+                    df = data[['Close']].copy()
+                    df = df.reset_index()
+                    df['Date'] = pd.to_datetime(df['Date']).dt.date
+                    df = df.rename(columns={'Date': 'Date', 'Close': 'Close'})
+                    result[symbol] = df
+                    _set_cached_history(symbol, start_date, end_date, df)
+            else:
+                # Multiple symbols - grouped by ticker
+                for symbol in uncached_symbols:
+                    try:
+                        if symbol in data.columns.get_level_values(0):
+                            df = data[symbol][['Close']].copy()
+                            df = df.dropna()
+                            if not df.empty:
+                                df = df.reset_index()
+                                df['Date'] = pd.to_datetime(df['Date']).dt.date
+                                result[symbol] = df
+                                _set_cached_history(symbol, start_date, end_date, df)
+                    except (KeyError, AttributeError):
+                        pass
+        except Exception as e:
+            logger.warning(f"Batch history fetch failed: {e}")
+            # Fallback to individual fetches
+            for symbol in uncached_symbols:
+                hist = MarketDataService.get_historical_data(symbol, start_date, end_date)
+                if not hist.empty:
+                    result[symbol] = hist
+        
+        return result
+    
+    @staticmethod
     def get_historical_data(
         symbol: str,
         start_date: date,

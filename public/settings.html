@@ -136,7 +136,7 @@
   <nav class="navbar">
     <div class="sidebar-header">
       <div class="nav-brand">
-        <span class="brand-icon">📈</span>
+        <span class="brand-icon"><i data-lucide="trending-up" size="20"></i></span>
         <span class="brand-text">AI Wealth</span>
       </div>
       <button class="sidebar-toggle" type="button" data-sidebar-toggle aria-label="Collapse sidebar" aria-expanded="true">
@@ -175,15 +175,15 @@
           style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
           <div>
             <h3 style="display: flex; align-items: center; gap: 8px;">
-              🔒 Sensitive Account Details
+              Sensitive Account Details
             </h3>
             <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 4px;">
               Editing these requires OTP verification.
             </p>
           </div>
           <div>
-            <button id="unlockBtn" class="btn-outline-sm">🔓 Unlock Settings</button>
-            <button id="lockBtn" class="btn-outline-sm danger" style="display: none;">🔒 Lock Now</button>
+            <button id="unlockBtn" class="btn-outline-sm">Unlock Settings</button>
+            <button id="lockBtn" class="btn-outline-sm danger" style="display: none;">Lock Now</button>
           </div>
         </div>
 
@@ -233,7 +233,7 @@
         <!-- Notifications -->
         <div class="data-card">
           <div class="card-header">
-            <h3>🔔 Notifications</h3>
+            <h3>Notifications</h3>
           </div>
           <p style="font-size: 0.85rem; margin-bottom: 20px; color: var(--text-muted);">Customize how you
             receive updates.</p>
@@ -310,11 +310,13 @@
 
   <!-- Footer -->
   <footer class="footer">
-    <p>⚠️ <strong>Disclaimer:</strong> This is an educational system. It does not provide financial advice.</p>
+    <p><strong>Disclaimer:</strong> This is an educational system. It does not provide financial advice.</p>
   </footer>
 
+  <script src="https://unpkg.com/lucide@latest"></script>
   <script src="js/layout.js"></script>
   <script src="settings.js"></script>
+  <script>if (window.lucide) lucide.createIcons();</script>
 </body>
 
 </html>
