@@ -1082,28 +1082,40 @@ app.post("/survey", async (req, res) => {
     await client.query("BEGIN")
     txStarted = true
 
-    await client.query(
-      `INSERT INTO questionnaire_responses
-       (user_id, age_group, occupation, income_range, savings_percent,
-        investment_experience, instruments_used_count, financial_comfort,
-        loss_reaction, return_priority, volatility_comfort, risk_label)
-       VALUES
-       ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-      [
-        req.session.user_id,
-        parsedPayload.age_group,
-        parsedPayload.occupation,
-        parsedPayload.annual_income_range,
-        parsedPayload.savings_percent,
-        parsedPayload.investment_experience,
-        parsedPayload.instruments_used_count,
-        parsedPayload.financial_comfort,
-        parsedPayload.loss_reaction,
-        parsedPayload.return_priority,
-        parsedPayload.volatility_comfort,
-        parsedPayload.risk_label
-      ]
-    )
+    // Try to save to questionnaire_responses table (optional - use SAVEPOINT to handle failure)
+    try {
+      await client.query("SAVEPOINT quest_save")
+      await client.query(
+        `DELETE FROM questionnaire_responses WHERE user_id = $1`,
+        [req.session.user_id]
+      )
+      await client.query(
+        `INSERT INTO questionnaire_responses
+         (user_id, age_group, occupation, income_range, savings_percent,
+          investment_experience, instruments_used_count, financial_comfort,
+          loss_reaction, return_priority, volatility_comfort, risk_label)
+         VALUES
+         ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        [
+          req.session.user_id,
+          parsedPayload.age_group,
+          parsedPayload.occupation,
+          parsedPayload.annual_income_range,
+          parsedPayload.savings_percent,
+          parsedPayload.investment_experience,
+          parsedPayload.instruments_used_count,
+          parsedPayload.financial_comfort,
+          parsedPayload.loss_reaction,
+          parsedPayload.return_priority,
+          parsedPayload.volatility_comfort,
+          parsedPayload.risk_label
+        ]
+      )
+      await client.query("RELEASE SAVEPOINT quest_save")
+    } catch (questErr) {
+      await client.query("ROLLBACK TO SAVEPOINT quest_save")
+      console.warn("questionnaire_responses table insert skipped:", questErr.message)
+    }
 
     await client.query(
       `UPDATE newusers 

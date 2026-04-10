@@ -105,8 +105,6 @@ async function loadGoalData() {
         // Update stats cards
         updateStatsCards(portfolio.summary);
 
-
-
         // Update recommendations (stock engine first, habit engine fallback)
         updateRecommendations(recommendations, habitInsights);
 
@@ -352,9 +350,21 @@ function renderHabitConflictSummary(data, fallbackMessage = null, selectedGoalId
             ? data.ai_guidance.personalized_roadmap_suggestion
             : [];
 
-        const goalSpecificRoadmap = roadmap.map(step => 
-            step.replace(/core goals|goals/gi, goalName)
-        );
+        // Build a list of all goal names to replace (any goal name should become the selected goal)
+        const allGoalNames = goalConflicts.map(gc => gc.goal_name).filter(Boolean);
+        const goalSpecificRoadmap = roadmap.map(step => {
+            let result = step;
+            // Replace any other goal names with the selected goal name
+            allGoalNames.forEach(otherGoal => {
+                if (otherGoal.toLowerCase() !== goalName.toLowerCase()) {
+                    const regex = new RegExp(otherGoal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+                    result = result.replace(regex, goalName);
+                }
+            });
+            // Also replace generic placeholders
+            result = result.replace(/core goals|goals/gi, goalName);
+            return result;
+        });
 
         goalSpecificRoadmap.slice(0, 3).forEach(step => {
             const li = document.createElement('li');
@@ -386,7 +396,23 @@ function renderHabitConflictSummary(data, fallbackMessage = null, selectedGoalId
             ? data.ai_guidance.personalized_roadmap_suggestion
             : [];
 
-        roadmap.slice(0, 3).forEach(step => {
+        // Replace any goal names with selected goal name if available
+        const allGoalNames = goalConflicts.map(gc => gc.goal_name).filter(Boolean);
+        const processedRoadmap = roadmap.map(step => {
+            let result = step;
+            if (selectedGoalName) {
+                allGoalNames.forEach(otherGoal => {
+                    if (otherGoal.toLowerCase() !== selectedGoalName.toLowerCase()) {
+                        const regex = new RegExp(otherGoal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+                        result = result.replace(regex, selectedGoalName);
+                    }
+                });
+                result = result.replace(/core goals|goals/gi, selectedGoalName);
+            }
+            return result;
+        });
+
+        processedRoadmap.slice(0, 3).forEach(step => {
             const li = document.createElement('li');
             li.style.marginBottom = '6px';
             li.textContent = step;

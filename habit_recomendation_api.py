@@ -234,16 +234,20 @@ def _calculate_goal_specific_savings(
     """Calculate realistic savings amounts per goal based on actual expenses."""
     if not goal_conflicts:
         return []
-    
+
     quick_wins = []
-    total_monthly = expense_breakdown.get("total_monthly_discretionary", 0) if expense_breakdown else 0
-    category_details = expense_breakdown.get("category_details", {}) if expense_breakdown else {}
-    
-    for gc in goal_conflicts[:5]:  # Top 5 goals max
+    top_goals = goal_conflicts[:5]  # Top 5 goals max
+
+    # Calculate total weight from conflict scores to distribute savings proportionally
+    total_weight = sum(float(gc.get("conflict_score", 0.3)) for gc in top_goals)
+    if total_weight == 0:
+        total_weight = 1.0
+
+    for gc in top_goals:
         goal_name = gc.get("goal_name", "Goal")
         conflict_score = float(gc.get("conflict_score", 0.3))
         monthly_required = float(gc.get("monthly_required", 0))
-        
+
         # Calculate difficulty based on conflict score
         if conflict_score >= 0.7:
             difficulty = "Hard"
@@ -251,20 +255,15 @@ def _calculate_goal_specific_savings(
             difficulty = "Moderate"
         else:
             difficulty = "Easy"
-        
-        # Calculate potential savings for this goal based on actual spending
-        if total_monthly > 0:
-            # Higher conflict = more potential savings by reducing that conflict
-            savings_potential_rate = 0.10 + (conflict_score * 0.15)  # 10-25%
-            goal_savings = round(total_monthly * savings_potential_rate, 0)
-        else:
-            # Fallback formula if no expense data
-            goal_savings = round(3000 + conflict_score * 5000, 0)
-        
+
+        # Distribute total_potential_savings proportionally by conflict_score
+        weight_ratio = conflict_score / total_weight
+        goal_savings = round(total_potential_savings * weight_ratio, 0)
+
         # Calculate gap coverage percentage
         gap_coverage = round((goal_savings / monthly_required) * 100, 1) if monthly_required > 0 else 0
         gap_coverage = min(gap_coverage, 100)  # Cap at 100%
-        
+
         quick_wins.append({
             "goal_name": goal_name,
             "difficulty": difficulty,
@@ -273,7 +272,7 @@ def _calculate_goal_specific_savings(
             "conflict_score": round(conflict_score, 3),
             "monthly_required": round(monthly_required, 2),
         })
-    
+
     return quick_wins
 
 
